@@ -24,7 +24,8 @@ export function readHand(raw: number[], id: string, width: number, height: numbe
   const indexReach = distance(tip, wrist) / Math.max(1, distance(p(5), wrist));
   const thumbIndex = distance(thumb, tip) / span;
   const distalLine = distance(thumb, p(7)) / span;
-  const heart = index && !middle && !ring && !pinky && distalLine < .52 && thumbIndex > .12 && thumbIndex < .82 && indexReach > 1.02;
+  const segmentDistance = (() => { const a=p(6), b=p(8), dx=b.x-a.x, dy=b.y-a.y; const t=Math.max(0,Math.min(1,((thumb.x-a.x)*dx+(thumb.y-a.y)*dy)/Math.max(1,dx*dx+dy*dy))); return distance(thumb,{x:a.x+dx*t,y:a.y+dy*t})/span; })();
+  const heart = index && !middle && !ring && !pinky && distalLine < .56 && segmentDistance < .34 && thumbIndex > .24 && thumbIndex < .9 && indexReach > 1.01;
   const palm = [index, middle, ring, pinky].filter(Boolean).length >= 2 && !heart;
   const tips = [p(8), p(12), p(16), p(20)];
   // Upper envelope of the open fingers is the visible support surface.
@@ -165,17 +166,18 @@ export class Interaction {
         if (penetration < 0) bubble.vy += clamp(-penetration * 55, -260, 260) * dt;
         const handVx = this.memories.get(support.id)?.vx ?? 0;
         bubble.vx += clamp((handVx - bubble.vx) * 1.8, -120, 120) * dt;
-        if (Math.abs(handVx) > 18) bubble.vx += clamp(handVx * .18, -90, 90) * dt;
+        if (Math.abs(handVx) > 18) bubble.vx += clamp(handVx * .8, -180, 180) * dt;
         if (support.anchor.y < bubble.y + bubble.r) bubble.vy = Math.min(bubble.vy, -18);
       } else {
         bubble.vx += (-bubble.vx * 1.2) * dt;
-        bubble.vy += (34 - bubble.vy * .9) * dt;
+        bubble.vy += (-8 - bubble.vy * .9) * dt;
       }
       bubble.vx = clamp(bubble.vx, -230, 230); bubble.vy = clamp(bubble.vy, -230, 230);
       bubble.x += bubble.vx * dt; bubble.y += bubble.vy * dt;
       if (bubble.x < bubble.r) { bubble.x = bubble.r; bubble.vx = Math.abs(bubble.vx) * .3; }
       if (bubble.x > this.width - bubble.r) { bubble.x = this.width - bubble.r; bubble.vx = -Math.abs(bubble.vx) * .3; }
       if (bubble.y < bubble.r + 8) { bubble.y = bubble.r + 8; bubble.vy = Math.max(0, bubble.vy); }
+      if (bubble.y > this.height - bubble.r - 8) { bubble.y = this.height - bubble.r - 8; bubble.vy = -Math.abs(bubble.vy) * .35; }
     }
   }
   get count() { return this.hearts.filter(h => h.active).length + this.bubbles.filter(b => b.active).length; }
