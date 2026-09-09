@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Scene = "fireworks" | "hearts" | "bubble";
-type TrackingResult = { faceLandmarks: number[] | null; hands: number[][]; handedness: string[] };
+type Blendshape = { name: string; score: number };
+type TrackingResult = { faceLandmarks: number[] | null; blendshapes: Blendshape[]; hands: number[][]; handedness: string[] };
+type Particle = { x: number; y: number; vx: number; vy: number; age: number; life: number; bounced: boolean; flash: number };
+type Firework = { particles: Particle[] };
 const SCENES: Record<Scene, { label: string; hint: string; color: string }> = {
   fireworks: { label: "大笑烟花", hint: "保持自然大笑，烟花会在头顶绽放。", color: "#ff6b8a" },
   hearts: { label: "指尖爱心", hint: "用拇指和食指做小比心，左右手都可以。", color: "#a981ff" },
@@ -21,13 +24,23 @@ export default function Home() {
   const captureFrameRef = useRef<number | null>(null);
   const inferenceBusyRef = useRef(false);
   const lastCaptureRef = useRef(0);
-  const latestTrackingRef = useRef<TrackingResult>({ faceLandmarks: null, hands: [], handedness: [] });
+  const latestTrackingRef = useRef<TrackingResult>({ faceLandmarks: null, blendshapes: [], hands: [], handedness: [] });
+  const fireworksRef = useRef<Firework[]>([]);
+  const laughActiveRef = useRef(false);
+  const lastBurstRef = useRef(0);
+  const sparkImageRef = useRef<HTMLImageElement | null>(null);
   const [scene, setScene] = useState<Scene>("fireworks");
   const [isCameraOn, setCameraOn] = useState(false);
   const [isPaused, setPaused] = useState(false);
   const [error, setError] = useState("");
   const [fps, setFps] = useState(0);
   const [trackingStatus, setTrackingStatus] = useState("未接入");
+
+  useEffect(() => {
+    const image = new Image();
+    image.src = "/assets/firework-spark.svg";
+    sparkImageRef.current = image;
+  }, []);
 
   const resizeCanvas = useCallback(() => {
     const video = videoRef.current;
@@ -53,17 +66,14 @@ export default function Home() {
       const dpr = canvas.clientWidth ? canvas.width / canvas.clientWidth : 1;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
+      const dt = now - lastFrameRef.current;
       if (isCameraOn && !isPaused) {
         ctx.save();
         ctx.globalAlpha = 0.72;
         ctx.strokeStyle = SCENES[scene].color;
         ctx.lineWidth = 1.5;
         ctx.setLineDash([6, 7]);
-        if (scene === "fireworks") {
-          ctx.beginPath();
-          ctx.ellipse(width / 2, height * 0.36, width * 0.17, height * 0.2, 0, 0, Math.PI * 2);
-          ctx.stroke();
-        } else if (scene === "bubble") {
+        if (scene === "bubble") {
           ctx.beginPath();
           ctx.arc(width * 0.52, height * 0.44, Math.min(width, height) * 0.1, 0, Math.PI * 2);
           ctx.stroke();
@@ -79,7 +89,45 @@ export default function Home() {
         }
         ctx.restore();
       }
-      const dt = now - lastFrameRef.current;
+      if (scene === "fireworks" && isCameraOn && !isPaused) {
+        const shape = Object.fromEntries(latestTrackingRef.current.blendshapes.map(({ name, score }) => [name, score]));
+        const laughing = ((shape.mouthSmileLeft ?? 0) + (shape.mouthSmileRight ?? 0)) / 2 > 0.48 && (shape.jawOpen ?? 0) > 0.2;
+        const face = latestTrackingRef.current.faceLandmarks;
+        const hx = face ? 1 - (face[3] ?? 0.5) : 0.5;
+        const hy = face ? (face[4] ?? 0.38) : 0.38;
+        if (laughing && (!laughActiveRef.current || now - lastBurstRef.current > 2800) && now - lastBurstRef.current > 1200) {
+          if (fireworksRef.current.length >= 3) fireworksRef.current.shift();
+          fireworksRef.current.push({ particles: Array.from({ length: 30 }, (_, index) => { const angle = index / 30 * Math.PI * 2; const speed = 0.2 + index % 4 * 0.01; return { x: hx, y: Math.max(0.08, hy - 0.24), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 0.05, age: 0, life: 1.8, bounced: false, flash: 0 }; }) });
+          lastBurstRef.current = now;
+        }
+        laughActiveRef.current = laughing;
+        const rx = width * 0.2;
+        const ry = height * 0.24;
+        ctx.save();
+        for (let i = fireworksRef.current.length - 1; i >= 0; i -= 1) {
+          const firework = fireworksRef.current[i];
+          for (const particle of firework.particles) {
+            particle.age += dt / 1000;
+            particle.vy += 0.14 * dt / 1000;
+            particle.x += particle.vx * dt / 1000;
+            particle.y += particle.vy * dt / 1000;
+            const dx = (particle.x - hx) * width;
+            const dy = (particle.y - hy) * height;
+            if (!particle.bounced && (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) < 1 && particle.vy > 0) {
+              particle.vy = -Math.abs(particle.vy) * 0.72;
+              particle.vx *= 0.82;
+              particle.bounced = true;
+              particle.flash = 0.12;
+            }
+            const alpha = Math.max(0, 1 - particle.age / particle.life);
+            const image = sparkImageRef.current;
+            if (image?.complete) { ctx.globalAlpha = alpha; ctx.drawImage(image, particle.x * width - 11, particle.y * height - 11, 22, 22); }
+            if (particle.flash > 0) { particle.flash -= dt / 1000; ctx.globalAlpha = Math.min(1, particle.flash * 8); ctx.fillStyle = "#fff4a8"; ctx.beginPath(); ctx.arc(particle.x * width, particle.y * height, 13, 0, Math.PI * 2); ctx.fill(); }
+          }
+          if (firework.particles.every((particle) => particle.age >= particle.life)) fireworksRef.current.splice(i, 1);
+        }
+        ctx.restore();
+      }
       if (dt > 0 && now - lastFpsUpdateRef.current > 500) {
         setFps(Math.round(1000 / dt));
         lastFpsUpdateRef.current = now;
@@ -102,14 +150,14 @@ export default function Home() {
     }
     const worker = new Worker("/tracking-worker.js");
     workerRef.current = worker;
-    worker.onmessage = (event: MessageEvent<{ type: string; message?: string; faceLandmarks?: number[] | null; hands?: number[][]; handedness?: string[] }>) => {
+    worker.onmessage = (event: MessageEvent<{ type: string; message?: string; faceLandmarks?: number[] | null; blendshapes?: Blendshape[]; hands?: number[][]; handedness?: string[] }>) => {
       if (event.data.type === "ready") setTrackingStatus("模型就绪");
       if (event.data.type === "error") {
         console.error("tracking worker", event.data.message);
         setTrackingStatus(event.data.message ? `模型错误 · ${event.data.message.slice(0, 18)}` : "模型错误");
       }
       if (event.data.type === "result") {
-        latestTrackingRef.current = { faceLandmarks: event.data.faceLandmarks ?? null, hands: event.data.hands ?? [], handedness: event.data.handedness ?? [] };
+        latestTrackingRef.current = { faceLandmarks: event.data.faceLandmarks ?? null, blendshapes: event.data.blendshapes ?? [], hands: event.data.hands ?? [], handedness: event.data.handedness ?? [] };
         inferenceBusyRef.current = false;
         setTrackingStatus("追踪中");
       }
@@ -157,7 +205,7 @@ export default function Home() {
     setCameraOn(false);
     setPaused(false);
     setTrackingStatus("未接入");
-    latestTrackingRef.current = { faceLandmarks: null, hands: [], handedness: [] };
+    latestTrackingRef.current = { faceLandmarks: null, blendshapes: [], hands: [], handedness: [] };
   }, []);
 
   const startCamera = async () => {
@@ -184,7 +232,7 @@ export default function Home() {
       <section className="workspace">
         <div className="intro"><div><p className="eyebrow">AR INTERACTION PROTOTYPE · T1</p><h1>让动作成为一份看得见的礼物</h1><p className="subcopy">先用真实摄像头验证动作、位置和性能，再加载正式美术素材。</p></div><div className="scope-note"><strong>本地处理</strong><span>视频不会录制或上传</span></div></div>
         <div className="stage-grid">
-          <section className="camera-card" aria-label="摄像头预览"><div className="camera-stage"><video ref={videoRef} className="camera-video" muted playsInline aria-label="摄像头画面" /><canvas ref={canvasRef} className="debug-layer" aria-hidden="true" />{!isCameraOn && <div className="camera-empty"><div className="camera-icon">◉</div><p>开启摄像头开始体验</p><span>首次使用时浏览器会请求权限</span></div>}{isPaused && isCameraOn && <div className="paused-cover"><span>互动已暂停</span><small>预览仍在运行，恢复后会重新建立追踪</small></div>}<div className="stage-label"><span className="scene-chip" style={{ background: SCENES[scene].color }}>{SCENES[scene].label}</span><span className="debug-chip">调试轮廓</span></div></div>{error && <p className="error-text" role="alert">{error}</p>}<div className="camera-actions">{!isCameraOn ? <button className="primary-button" onClick={startCamera}>开启摄像头</button> : <button className="secondary-button" onClick={stopCamera}>关闭摄像头</button>}{isCameraOn && <button className="secondary-button" onClick={() => setPaused((value) => { if (!value) latestTrackingRef.current = { faceLandmarks: null, hands: [], handedness: [] }; return !value; })}>{isPaused ? "恢复互动" : "暂停互动"}</button>}</div></section>
+          <section className="camera-card" aria-label="摄像头预览"><div className="camera-stage"><video ref={videoRef} className="camera-video" muted playsInline aria-label="摄像头画面" /><canvas ref={canvasRef} className="debug-layer" aria-hidden="true" />{!isCameraOn && <div className="camera-empty"><div className="camera-icon">◉</div><p>开启摄像头开始体验</p><span>首次使用时浏览器会请求权限</span></div>}{isPaused && isCameraOn && <div className="paused-cover"><span>互动已暂停</span><small>预览仍在运行，恢复后会重新建立追踪</small></div>}<div className="stage-label"><span className="scene-chip" style={{ background: SCENES[scene].color }}>{SCENES[scene].label}</span><span className="debug-chip">追踪点</span></div></div>{error && <p className="error-text" role="alert">{error}</p>}<div className="camera-actions">{!isCameraOn ? <button className="primary-button" onClick={startCamera}>开启摄像头</button> : <button className="secondary-button" onClick={stopCamera}>关闭摄像头</button>}{isCameraOn && <button className="secondary-button" onClick={() => setPaused((value) => { if (!value) { latestTrackingRef.current = { faceLandmarks: null, blendshapes: [], hands: [], handedness: [] }; fireworksRef.current = []; } return !value; })}>{isPaused ? "恢复互动" : "暂停互动"}</button>}</div></section>
           <aside className="control-panel"><div className="panel-heading"><div><p className="eyebrow">SCENE SELECT</p><h2>选择互动礼物</h2></div><span className="version-tag">P0</span></div><div className="scene-list">{(Object.keys(SCENES) as Scene[]).map((key) => <button key={key} className={`scene-option ${scene === key ? "selected" : ""}`} onClick={() => { setScene(key); setPaused(false); }} aria-pressed={scene === key}><span className="scene-swatch" style={{ background: SCENES[key].color }}>{key === "fireworks" ? "✹" : key === "hearts" ? "♡" : "◌"}</span><span className="scene-text"><strong>{SCENES[key].label}</strong><small>{SCENES[key].hint}</small></span><span className="scene-arrow">↗</span></button>)}</div><div className="panel-divider" /><div className="readiness"><span className="readiness-icon">⌁</span><div><strong>{isCameraOn ? trackingStatus : "需要摄像头输入"}</strong><span>{isCameraOn ? "单 Worker · 单帧在途 · 15 FPS 上限" : "开启后将进入本地实验"}</span></div></div><div className="metrics"><div><span>渲染 FPS</span><strong>{isCameraOn ? fps : "—"}</strong></div><div><span>推理状态</span><strong>{trackingStatus}</strong></div><div><span>活跃实例</span><strong>0 / 240</strong></div></div></aside>
         </div>
       </section>
