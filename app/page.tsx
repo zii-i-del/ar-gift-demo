@@ -100,11 +100,14 @@ export default function Home() {
       workerRef.current = null;
       return;
     }
-    const worker = new Worker(new URL("./tracking.worker.ts", import.meta.url), { type: "module" });
+    const worker = new Worker("/tracking-worker.js");
     workerRef.current = worker;
     worker.onmessage = (event: MessageEvent<{ type: string; message?: string; faceLandmarks?: number[] | null; hands?: number[][]; handedness?: string[] }>) => {
       if (event.data.type === "ready") setTrackingStatus("模型就绪");
-      if (event.data.type === "error") setTrackingStatus("模型错误");
+      if (event.data.type === "error") {
+        console.error("tracking worker", event.data.message);
+        setTrackingStatus(event.data.message ? `模型错误 · ${event.data.message.slice(0, 18)}` : "模型错误");
+      }
       if (event.data.type === "result") {
         latestTrackingRef.current = { faceLandmarks: event.data.faceLandmarks ?? null, hands: event.data.hands ?? [], handedness: event.data.handedness ?? [] };
         inferenceBusyRef.current = false;

@@ -5,7 +5,7 @@
 ## 已实现
 
 - 摄像头启停、权限错误提示、镜像预览和暂停/恢复。
-- Face Landmarker + Hand Landmarker 在同一个 Web Worker 中初始化。
+- Face Landmarker + Hand Landmarker 在同一个经典 Web Worker 中初始化（`public/tracking-worker.js`），避免 RSC 开发服务器把 Worker 依赖留成浏览器不可解析的裸模块。
 - `createImageBitmap` 帧采集；最多 15 FPS，始终只保留一帧推理在途，结果过期时直接丢弃。
 - 场景切换：大笑烟花、指尖爱心、托举泡泡；当前只显示追踪调试点，不伪造正式礼物素材。
 
