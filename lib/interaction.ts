@@ -25,13 +25,15 @@ export function readHand(raw: number[], id: string, width: number, height: numbe
   const thumbIndex = distance(thumb, tip) / span;
   const distalLine = distance(thumb, p(7)) / span;
   const segmentDistance = (() => { const a=p(6), b=p(8), dx=b.x-a.x, dy=b.y-a.y; const t=Math.max(0,Math.min(1,((thumb.x-a.x)*dx+(thumb.y-a.y)*dy)/Math.max(1,dx*dx+dy*dy))); return distance(thumb,{x:a.x+dx*t,y:a.y+dy*t})/span; })();
-  const heart = index && !middle && !ring && !pinky && distalLine < .56 && segmentDistance < .34 && thumbIndex > .24 && thumbIndex < .9 && indexReach > 1.01;
-  const palm = [index, middle, ring, pinky].filter(Boolean).length >= 2 && !heart;
+  const heart = index && !middle && !ring && !pinky && distalLine < .9 && segmentDistance < .62 && thumbIndex > .28 && thumbIndex < .95 && indexReach > 1.0;
+  const extendedCount = [index, middle, ring, pinky].filter(Boolean).length;
+  const pointing = index && !middle && !ring && !pinky;
+  const palm = !heart && !pointing && (extendedCount >= 2 || distance(p(4), p(20)) > span * 1.1);
   const tips = [p(8), p(12), p(16), p(20)];
   // Upper envelope of the open fingers is the visible support surface.
   const anchor = { x: tips.reduce((n, t) => n + t.x, 0) / 4, y: Math.min(...tips.map(t => t.y)) };
   return { id, tip: heart ? { x: (tip.x + thumb.x) / 2, y: (tip.y + thumb.y) / 2 } : tip, wrist, anchor, span,
-    heart, palm, pointing: index && !middle && !ring && !pinky,
+    heart, palm, pointing,
     reach: (raw[5 * 3 + 2] - raw[8 * 3 + 2]) / Math.max(.03, Math.hypot(raw[15] - raw[51], raw[16] - raw[52])) };
 }
 
