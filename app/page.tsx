@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Interaction, readHand } from "../lib/interaction";
+import { fireworkDone, headCollider, spawnFirework, stepFirework, type Firework } from "../lib/fireworks";
 
 type Scene = "fireworks" | "hearts" | "bubble";
 type Blendshape = { name: string; score: number };
 type TrackingResult = { faceLandmarks: number[] | null; blendshapes: Blendshape[]; hands: number[][]; handedness: string[] };
-type Particle = { x: number; y: number; vx: number; vy: number; age: number; life: number; bounced: boolean; flash: number };
-type Firework = { particles: Particle[] };
 const SCENES: Record<Scene, { label: string; hint: string; color: string }> = {
   fireworks: { label: "大笑烟花", hint: "保持自然大笑，烟花会在头顶绽放。", color: "#ff6b8a" },
   hearts: { label: "指尖爱心", hint: "用拇指和食指做小比心，左右手都可以。", color: "#a981ff" },
@@ -103,38 +102,27 @@ export default function Home() {
         const shape = Object.fromEntries(latestTrackingRef.current.blendshapes.map(({ name, score }) => [name, score]));
         const laughing = ((shape.mouthSmileLeft ?? 0) + (shape.mouthSmileRight ?? 0)) / 2 > 0.48 && (shape.jawOpen ?? 0) > 0.2;
         const face = latestTrackingRef.current.faceLandmarks;
-        const hx = face ? 1 - (face[3] ?? 0.5) : 0.5;
-        const hy = face ? (face[4] ?? 0.38) : 0.38;
+        const collider = headCollider(face, width, height);
+        const hx = collider ? collider.x / width : width * .5;
+        const hy = collider ? Math.max(36, collider.y - collider.ry - 28) : height * .2;
         if (laughing && (!laughActiveRef.current || now - lastBurstRef.current > 2800) && now - lastBurstRef.current > 1200) {
-          if (fireworksRef.current.length >= 3) fireworksRef.current.shift();
-          fireworksRef.current.push({ particles: Array.from({ length: 30 }, (_, index) => { const angle = index / 30 * Math.PI * 2; const speed = 0.2 + index % 4 * 0.01; return { x: hx, y: Math.max(0.08, hy - 0.24), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 0.05, age: 0, life: 1.8, bounced: false, flash: 0 }; }) });
+          if (fireworksRef.current.length >= 2) fireworksRef.current.shift();
+          fireworksRef.current.push(spawnFirework(hx, hy));
           lastBurstRef.current = now;
         }
         laughActiveRef.current = laughing;
-        const rx = width * 0.2;
-        const ry = height * 0.24;
         ctx.save();
         for (let i = fireworksRef.current.length - 1; i >= 0; i -= 1) {
           const firework = fireworksRef.current[i];
+          stepFirework(firework, dt / 1000, collider);
           for (const particle of firework.particles) {
-            particle.age += dt / 1000;
-            particle.vy += 0.14 * dt / 1000;
-            particle.x += particle.vx * dt / 1000;
-            particle.y += particle.vy * dt / 1000;
-            const dx = (particle.x - hx) * width;
-            const dy = (particle.y - hy) * height;
-            if (!particle.bounced && (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) < 1 && particle.vy > 0) {
-              particle.vy = -Math.abs(particle.vy) * 0.72;
-              particle.vx *= 0.82;
-              particle.bounced = true;
-              particle.flash = 0.12;
-            }
             const alpha = Math.max(0, 1 - particle.age / particle.life);
             const image = sparkImageRef.current;
-            if (image?.complete) { ctx.globalAlpha = alpha; ctx.drawImage(image, particle.x * width - 11, particle.y * height - 11, 22, 22); }
-            if (particle.flash > 0) { particle.flash -= dt / 1000; ctx.globalAlpha = Math.min(1, particle.flash * 8); ctx.fillStyle = "#fff4a8"; ctx.beginPath(); ctx.arc(particle.x * width, particle.y * height, 13, 0, Math.PI * 2); ctx.fill(); }
+            if (particle.trail.length > 1) { ctx.globalAlpha = alpha * .35; ctx.strokeStyle = "#ffd6e0"; ctx.beginPath(); ctx.moveTo(particle.trail[0].x,particle.trail[0].y); for(const t of particle.trail.slice(1))ctx.lineTo(t.x,t.y); ctx.stroke(); }
+            if (image?.complete) { ctx.globalAlpha = alpha; ctx.drawImage(image, particle.x - 7, particle.y - 7, 14, 14); }
+            if (particle.hit > 0) { ctx.globalAlpha = Math.min(1, particle.hit * 8); ctx.fillStyle = "#fff4a8"; ctx.beginPath(); ctx.arc(particle.x, particle.y, 12, 0, Math.PI * 2); ctx.fill(); }
           }
-          if (firework.particles.every((particle) => particle.age >= particle.life)) fireworksRef.current.splice(i, 1);
+          if (fireworkDone(firework)) fireworksRef.current.splice(i, 1);
         }
         ctx.restore();
       }

@@ -158,13 +158,16 @@ export class Interaction {
         }
       }
       if (support) {
-        const tx = support.anchor.x, ty = support.anchor.y - bubble.r;
-        // Damped spring: lag and inertia, never a hard snap to the palm.
-        bubble.vx += ((tx - bubble.x) * 70 - bubble.vx * 15) * dt;
-        bubble.vy += ((ty - bubble.y) * 70 - bubble.vy * 15) * dt;
+        const contactY = support.anchor.y - bubble.r;
+        const penetration = contactY - bubble.y;
+        if (penetration < 0) bubble.vy += clamp(-penetration * 55, -260, 260) * dt;
+        const handVx = this.memories.get(support.id)?.vx ?? 0;
+        bubble.vx += clamp((handVx - bubble.vx) * 1.8, -120, 120) * dt;
+        if (Math.abs(handVx) > 18) bubble.vx += clamp(handVx * .18, -90, 90) * dt;
+        if (support.anchor.y < bubble.y + bubble.r) bubble.vy = Math.min(bubble.vy, -18);
       } else {
-        bubble.vx += (Math.sin(bubble.age * 1.4) * 5 - bubble.vx * 1.2) * dt;
-        bubble.vy += (-18 - bubble.vy * .9) * dt;
+        bubble.vx += (-bubble.vx * 1.2) * dt;
+        bubble.vy += (34 - bubble.vy * .9) * dt;
       }
       bubble.vx = clamp(bubble.vx, -230, 230); bubble.vy = clamp(bubble.vy, -230, 230);
       bubble.x += bubble.vx * dt; bubble.y += bubble.vy * dt;
