@@ -10,6 +10,8 @@ export function coverPoint(x: number, y: number, width: number, height: number, 
 }
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (x: number, min: number, max: number) => Math.max(min, Math.min(max, x));
+const cross = (a: Point, b: Point, c: Point) => (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+const segmentsCross = (a: Point,b: Point,c: Point,d: Point) => cross(a,b,c)*cross(a,b,d)<0 && cross(c,d,a)*cross(c,d,b)<0;
 
 export function readHand(raw: number[], id: string, width: number, height: number, sw: number, sh: number): Hand | null {
   if (raw.length !== 63 || !raw.every(Number.isFinite)) return null;
@@ -25,7 +27,8 @@ export function readHand(raw: number[], id: string, width: number, height: numbe
   const thumbIndex = distance(thumb, tip) / span;
   const distalLine = distance(thumb, p(7)) / span;
   const segmentDistance = (() => { const a=p(6), b=p(8), dx=b.x-a.x, dy=b.y-a.y; const t=Math.max(0,Math.min(1,((thumb.x-a.x)*dx+(thumb.y-a.y)*dy)/Math.max(1,dx*dx+dy*dy))); return distance(thumb,{x:a.x+dx*t,y:a.y+dy*t})/span; })();
-  const heart = index && !middle && !ring && !pinky && distalLine < .9 && segmentDistance < .62 && thumbIndex > .28 && thumbIndex < .95 && indexReach > 1.0;
+  const crossed = segmentsCross(p(2), thumb, p(5), tip) || segmentsCross(p(1), thumb, p(5), p(8));
+  const heart = index && !middle && !ring && !pinky && ((crossed && thumbIndex > .22) || (distalLine < .9 && segmentDistance < .62 && thumbIndex > .28 && thumbIndex < .95)) && indexReach > 1.0;
   const extendedCount = [index, middle, ring, pinky].filter(Boolean).length;
   const pointing = index && !middle && !ring && !pinky;
   const palm = !heart && !pointing && (extendedCount >= 2 || distance(p(4), p(20)) > span * 1.1);
@@ -167,8 +170,10 @@ export class Interaction {
         const penetration = contactY - bubble.y;
         if (penetration < 0) bubble.vy += clamp(-penetration * 55, -260, 260) * dt;
         const handVx = this.memories.get(support.id)?.vx ?? 0;
+        const handVy = this.memories.get(support.id)?.vy ?? 0;
         bubble.vx += clamp((handVx - bubble.vx) * 1.8, -120, 120) * dt;
         if (Math.abs(handVx) > 18) bubble.vx += clamp(handVx * .8, -180, 180) * dt;
+        if (Math.abs(handVy) > 18) bubble.vy += clamp(handVy * .9, -260, 260) * dt;
         if (support.anchor.y < bubble.y + bubble.r) bubble.vy = Math.min(bubble.vy, -18);
       } else {
         bubble.vx += (-bubble.vx * 1.2) * dt;
