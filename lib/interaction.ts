@@ -33,13 +33,13 @@ export function readHand(raw: number[], id: string, width: number, height: numbe
     reach: (raw[5 * 3 + 2] - raw[8 * 3 + 2]) / Math.max(.03, Math.hypot(raw[15] - raw[51], raw[16] - raw[52])) };
 }
 
-type HandMemory = { hand: Hand; seen: number; heartSince: number; emitted: number; dwell: Point; dwellSince: number; armed: boolean; offSince: number };
+type HandMemory = { hand: Hand; seen: number; heartSince: number; emitted: number; dwell: Point; dwellSince: number; armed: boolean; offSince: number; vx: number; vy: number };
 export type Heart = { active: boolean; x: number; y: number; age: number; owner: string; size: number };
 export type Bubble = { active: boolean; x: number; y: number; vx: number; vy: number; r: number; age: number; pop: number;
   owner: string | null; lost: number; candidate: string | null; candidateSince: number; lastRelease: number };
 
 export class Interaction {
-  hearts: Heart[] = Array.from({ length: 8 }, () => ({ active: false, x: 0, y: 0, age: 0, owner: '', size: 0 }));
+  hearts: Heart[] = Array.from({ length: 6 }, () => ({ active: false, x: 0, y: 0, age: 0, owner: '', size: 0 }));
   bubbles: Bubble[] = Array.from({ length: 2 }, () => ({ active: false, x: 0, y: 0, vx: 0, vy: 0, r: 0, age: 0, pop: -1, owner: null, lost: 0, candidate: null, candidateSince: 0, lastRelease: -Infinity }));
   memories = new Map<string, HandMemory>();
   width = 640;
@@ -60,7 +60,7 @@ export class Interaction {
     for (const hand of hands) {
       let memory = this.memories.get(hand.id);
       if (!memory || now - memory.seen > 250) {
-        memory = { hand, seen: now, heartSince: -1, emitted: -Infinity, dwell: hand.tip, dwellSince: now, armed: true, offSince: -1 };
+        memory = { hand, seen: now, heartSince: -1, emitted: -Infinity, dwell: hand.tip, dwellSince: now, armed: true, offSince: -1, vx: 0, vy: 0 };
         this.memories.set(hand.id, memory);
       }
       const previous = memory.hand;
@@ -69,9 +69,10 @@ export class Interaction {
       if (this.scene === 'hearts') {
         if (hand.heart) {
           if (memory.heartSince < 0) memory.heartSince = now;
-          if (now - memory.heartSince >= 180 && now - memory.emitted >= 1000) {
-            const heart = this.hearts.find(h => !h.active);
-            if (heart) { Object.assign(heart, { active: true, x: hand.tip.x, y: hand.tip.y - 10, age: 0, owner: hand.id, size: clamp(hand.span * .5, 25, 50) }); this.emittedHearts++; }
+          if (now - memory.heartSince >= 100 && now - memory.emitted >= 850) {
+            const ownerCount = this.hearts.filter(h => h.active && h.owner === hand.id).length;
+            const heart = ownerCount < 3 && this.hearts.filter(h => h.active).length < 6 ? this.hearts.find(h => !h.active) : undefined;
+            if (heart) { Object.assign(heart, { active: true, x: hand.tip.x + clamp(memory.vx * .12, -24, 24), y: hand.tip.y + clamp(memory.vy * .12, -24, 24) - 10, age: 0, owner: hand.id, size: clamp(hand.span * .5, 25, 50) }); this.emittedHearts++; }
             memory.emitted = now;
           }
           this.hint = '爱心会从指尖飘走 · 保持比心可继续生成';
@@ -99,7 +100,7 @@ export class Interaction {
             memory.dwell = { ...hand.tip }; memory.dwellSince = now;
           }
           const near = this.bubbles.some(b => b.active && distance(hand.tip, b) < b.r * 1.8);
-          if (memory.armed && !near && now - memory.dwellSince >= 650) {
+          if (memory.armed && !near && now - memory.dwellSince >= 400) {
             const bubble = this.bubbles.find(b => !b.active);
             if (bubble) {
               Object.assign(bubble, { active: true, x: hand.tip.x, y: hand.tip.y - 28, r: clamp(hand.span * .55, 28, 48), vx: 0, vy: -14, age: 0, pop: -1, owner: null, candidate: null, candidateSince: 0, lost: 0, lastRelease: -Infinity });
@@ -112,6 +113,8 @@ export class Interaction {
           if (now - memory.offSince > 300) { memory.armed = true; memory.dwell = hand.tip; memory.dwellSince = now; }
         }
       }
+      memory.vx = clamp((hand.tip.x - previous.tip.x) / sampleDt, -320, 320);
+      memory.vy = clamp((hand.tip.y - previous.tip.y) / sampleDt, -320, 320);
       memory.hand = hand; memory.seen = now;
     }
     for (const [id, memory] of this.memories) if (now - memory.seen > 350) this.memories.delete(id);
@@ -124,7 +127,7 @@ export class Interaction {
       heart.age += dt;
       const memory = this.memories.get(heart.owner);
       if (heart.age < .28 && memory && now - memory.seen < 200 && memory.hand.heart) {
-        heart.x = memory.hand.tip.x; heart.y = memory.hand.tip.y - 10;
+        heart.x = memory.hand.tip.x + clamp(memory.vx * .12, -24, 24); heart.y = memory.hand.tip.y + clamp(memory.vy * .12, -24, 24) - 10;
       } else { heart.y -= 55 * dt; heart.x += Math.sin(heart.age * 3) * 9 * dt; }
       if (heart.age > 2.6 || heart.y < -70) heart.active = false;
     }
@@ -140,16 +143,16 @@ export class Interaction {
           support = memory.hand; bubble.lost = 0;
         } else {
           bubble.lost += dt;
-          if (bubble.lost > .15) { bubble.owner = null; bubble.lastRelease = now; bubble.candidate = null; this.hint = '已释放 · 泡泡会轻轻上浮'; }
+          if (bubble.lost > .12) { bubble.vx = clamp(bubble.vx + (memory?.vx ?? 0) * .2, -90, 90); bubble.owner = null; bubble.lastRelease = now; bubble.candidate = null; this.hint = '已释放 · 泡泡会轻轻上浮'; }
         }
       } else if (now - bubble.lastRelease > 300) {
         for (const memory of this.memories.values()) {
           const hand = memory.hand;
           const gap = hand.anchor.y - (bubble.y + bubble.r);
           // Narrow bottom contact window prevents attraction from the sides.
-          if (now - memory.seen < 180 && hand.palm && Math.abs(hand.anchor.x - bubble.x) < bubble.r * .65 && gap >= -10 && gap < 16) {
+          if (now - memory.seen < 180 && hand.palm && Math.abs(hand.anchor.x - bubble.x) < bubble.r * 1.15 && gap >= -bubble.r * .2 && gap < bubble.r * .8) {
             if (bubble.candidate !== hand.id) { bubble.candidate = hand.id; bubble.candidateSince = now; }
-            if (now - bubble.candidateSince > 100) { bubble.owner = hand.id; support = hand; this.hint = '托住了 · 缓慢搬动，移开手即可释放'; }
+            if (now - bubble.candidateSince > 80) { bubble.owner = hand.id; support = hand; this.hint = '托住了 · 缓慢搬动，移开手即可释放'; }
             break;
           } else if (bubble.candidate === hand.id) bubble.candidate = null;
         }
