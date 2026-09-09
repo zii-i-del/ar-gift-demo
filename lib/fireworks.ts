@@ -1,9 +1,10 @@
 export type HeadCollider = { x: number; y: number; rx: number; ry: number; angle: number };
 export type FireParticle = { x:number;y:number;px:number;py:number;vx:number;vy:number;age:number;life:number;phase:"rocket"|"burst";trail:Array<{x:number;y:number}>;hit:number };
 export type Firework = { particles: FireParticle[]; age:number; origin:{x:number;y:number} };
-export function headCollider(face:number[]|null,w:number,h:number):HeadCollider|null {
+function map(x:number,y:number,w:number,h:number,sw:number,sh:number){const scale=Math.max(w/sw,h/sh);return {x:w-(x*sw*scale+(w-sw*scale)/2),y:y*sh*scale+(h-sh*scale)/2};}
+export function headCollider(face:number[]|null,w:number,h:number,sw=w,sh=h):HeadCollider|null {
  if(!face||face.length<468*3)return null;
- const p=(i:number)=>({x:(1-face[i*3])*w,y:face[i*3+1]*h}); const l=p(234),r=p(454),top=p(10),chin=p(152);
+ const p=(i:number)=>map(face[i*3],face[i*3+1],w,h,sw,sh); const l=p(234),r=p(454),top=p(10),chin=p(152);
  const cx=(l.x+r.x)/2, cy=(top.y+chin.y)/2; return {x:cx,y:cy,rx:Math.max(42,Math.abs(r.x-l.x)*.7),ry:Math.max(58,Math.abs(chin.y-top.y)*.58),angle:Math.atan2(r.y-l.y,r.x-l.x)};
 }
 export function spawnFirework(x:number,y:number):Firework { return {age:0,origin:{x,y},particles:[{x,y:y+80,px:x,py:y+80,vx:0,vy:-420,age:0,life:1.15,phase:"rocket",trail:[],hit:0}]}; }

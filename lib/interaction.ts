@@ -16,15 +16,16 @@ export function readHand(raw: number[], id: string, width: number, height: numbe
   const p = (i: number) => coverPoint(raw[i * 3], raw[i * 3 + 1], width, height, sw, sh);
   const wrist = p(0), span = distance(p(5), p(17));
   if (span < 18) return null;
-  const extended = (tip: number, pip: number) => distance(p(tip), wrist) > distance(p(pip), wrist) * 1.16;
+  const extended = (tip: number, pip: number) => distance(p(tip), wrist) > distance(p(pip), wrist) * 1.08;
   const index = extended(8, 6), middle = extended(12, 10), ring = extended(16, 14), pinky = extended(20, 18);
   const tip = p(8), thumb = p(4);
   // A small crossed finger-heart uses thumb against the index distal segment.
   // A tip-to-tip pinch / OK ring is rejected; thresholds remain user-test candidates.
-  const heart = !middle && !ring && !pinky && distance(thumb, p(7)) < span * .38
-    && distance(thumb, tip) > span * .16 && distance(thumb, tip) < span * .65
-    && distance(tip, wrist) > distance(p(5), wrist) * 1.1;
-  const palm = [index, middle, ring, pinky].filter(Boolean).length >= 3;
+  const indexReach = distance(tip, wrist) / Math.max(1, distance(p(5), wrist));
+  const thumbIndex = distance(thumb, tip) / span;
+  const distalLine = distance(thumb, p(7)) / span;
+  const heart = index && !middle && !ring && !pinky && distalLine < .52 && thumbIndex > .12 && thumbIndex < .82 && indexReach > 1.02;
+  const palm = [index, middle, ring, pinky].filter(Boolean).length >= 2 && !heart;
   const tips = [p(8), p(12), p(16), p(20)];
   // Upper envelope of the open fingers is the visible support surface.
   const anchor = { x: tips.reduce((n, t) => n + t.x, 0) / 4, y: Math.min(...tips.map(t => t.y)) };
@@ -148,9 +149,10 @@ export class Interaction {
       } else if (now - bubble.lastRelease > 300) {
         for (const memory of this.memories.values()) {
           const hand = memory.hand;
-          const gap = hand.anchor.y - (bubble.y + bubble.r);
+          const palmCenter = { x: (hand.wrist.x + hand.anchor.x) * .5, y: (hand.wrist.y + hand.anchor.y) * .5 };
+          const gap = palmCenter.y - (bubble.y + bubble.r);
           // Narrow bottom contact window prevents attraction from the sides.
-          if (now - memory.seen < 180 && hand.palm && Math.abs(hand.anchor.x - bubble.x) < bubble.r * 1.15 && gap >= -bubble.r * .2 && gap < bubble.r * .8) {
+          if (now - memory.seen < 180 && hand.palm && Math.abs(palmCenter.x - bubble.x) < bubble.r * 1.15 && gap >= -bubble.r * .35 && gap < bubble.r * 1.1) {
             if (bubble.candidate !== hand.id) { bubble.candidate = hand.id; bubble.candidateSince = now; }
             if (now - bubble.candidateSince > 80) { bubble.owner = hand.id; support = hand; this.hint = '托住了 · 缓慢搬动，移开手即可释放'; }
             break;
@@ -158,7 +160,7 @@ export class Interaction {
         }
       }
       if (support) {
-        const contactY = support.anchor.y - bubble.r;
+        const contactY = (support.wrist.y + support.anchor.y) * .5 - bubble.r;
         const penetration = contactY - bubble.y;
         if (penetration < 0) bubble.vy += clamp(-penetration * 55, -260, 260) * dt;
         const handVx = this.memories.get(support.id)?.vx ?? 0;

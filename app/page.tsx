@@ -102,7 +102,8 @@ export default function Home() {
         const shape = Object.fromEntries(latestTrackingRef.current.blendshapes.map(({ name, score }) => [name, score]));
         const laughing = ((shape.mouthSmileLeft ?? 0) + (shape.mouthSmileRight ?? 0)) / 2 > 0.48 && (shape.jawOpen ?? 0) > 0.2;
         const face = latestTrackingRef.current.faceLandmarks;
-        const collider = headCollider(face, width, height);
+        const video = videoRef.current;
+        const collider = headCollider(face, width, height, video?.videoWidth || width, video?.videoHeight || height);
         const hx = collider ? collider.x / width : width * .5;
         const hy = collider ? Math.max(36, collider.y - collider.ry - 28) : height * .2;
         if (laughing && (!laughActiveRef.current || now - lastBurstRef.current > 2800) && now - lastBurstRef.current > 1200) {
