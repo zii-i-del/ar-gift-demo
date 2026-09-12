@@ -1,0 +1,20 @@
+{
+  "assetVersion": "1.4.1",
+  "appearance": "Blender-authored pink-blue matcap plus separate Cycles softbox highlights",
+  "maps": [
+    "film-matcap.png",
+    "highlight-matcap.png",
+    "studio-environment.png"
+  ],
+  "encoding": "sRGB",
+  "filmStrength": 0.78,
+  "edgeFilmStrengthMax": 0.93,
+  "highlightStrength": 1.4,
+  "birthSeconds": 0.1,
+  "membraneRetreatSeconds": 0.06,
+  "ruptureSeconds": 0.32,
+  "mainPoolCapacity": 96,
+  "mainLifetimeSeconds": 5,
+  "physicalAccuracy": "art-directed view-dependent approximation, not environment-correct optical simulation",
+  "revision": "Curved cyan/pink and blue/lavender lobe transitions with softer blending; unchanged highlight and runtime."
+}

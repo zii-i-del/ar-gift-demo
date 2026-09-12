@@ -1,0 +1,47 @@
+import * as THREE from 'three';
+import {ConfettiRenderer} from './confetti-renderer';
+import {HeartRenderer} from './heart-renderer';
+import {BubbleRenderer} from './bubble-renderer';
+import type {Confetti} from './confetti';
+import type {Interaction} from './interaction';
+
+/** One context. The DOM video is the sole visible background. */
+export class GiftRenderer {
+  renderer=new THREE.WebGLRenderer({alpha:true,antialias:true});
+  videoTexture:THREE.VideoTexture;
+  confetti:ConfettiRenderer;
+  hearts:HeartRenderer;
+  bubbles:BubbleRenderer;
+  disposed=false;
+  ready={confetti:true,hearts:false,bubble:false};
+  errors:Record<string,string>={};
+  timings={confetti:0,hearts:0,bubble:0};
+  constructor(video:HTMLVideoElement){
+    this.videoTexture=new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;
+    this.confetti=new ConfettiRenderer(this.renderer);
+    this.hearts=new HeartRenderer('v5',true,true,true,this.renderer);
+    this.bubbles=new BubbleRenderer(this.renderer,this.videoTexture);
+    this.renderer.autoClear=false;this.renderer.setClearColor(0,0);
+  }
+  async load(){
+    for(const [key,view] of [['hearts',this.hearts],['bubble',this.bubbles]] as const){
+      if(this.disposed)return;
+      try{await view.load();if(!this.disposed)this.ready[key]=true;}catch{this.errors[key]='素材加载失败';}
+    }
+  }
+  draw(c:Confetti,i:Interaction,video:HTMLVideoElement){
+    const r=this.renderer,dpr=c.low?1:Math.min(devicePixelRatio,1.5);
+    if(r.getPixelRatio()!==dpr)r.setPixelRatio(dpr);
+    if(r.domElement.width!==Math.floor(c.width*dpr)||r.domElement.height!==Math.floor(c.height*dpr))r.setSize(c.width,c.height);
+    r.setRenderTarget(null);r.clear();
+    let t=performance.now();r.toneMapping=THREE.NoToneMapping;
+    if(c.active)this.confetti.draw(c);this.timings.confetti=performance.now()-t;
+    r.clearDepth();t=performance.now();r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1;
+    if(this.ready.hearts && (i.hearts.some(h=>h.active)||i.heartPetals?.groups.some(g=>g.active)))this.hearts.draw(i.hearts,c.width,c.height,undefined,undefined,undefined,undefined,i.heartTails,i.heartPetals);
+    this.timings.hearts=performance.now()-t;
+    r.clearDepth();t=performance.now();r.toneMapping=THREE.NoToneMapping;
+    if(this.ready.bubble)this.bubbles.draw(i.bubbles,c.width,c.height,video);
+    this.timings.bubble=performance.now()-t;
+  }
+  dispose(){if(this.disposed)return;this.disposed=true;this.confetti.dispose();this.hearts.dispose();this.bubbles.dispose();this.videoTexture.dispose();this.renderer.dispose();this.renderer.forceContextLoss();}
+}

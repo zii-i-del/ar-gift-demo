@@ -1,275 +1,91 @@
-"use client";
+'use client';
+import {useEffect,useRef,useState} from 'react';
+import {confettiCount} from '../lib/confetti-config';
+import {Confetti,type ConfettiPacket} from '../lib/confetti';
+import {Interaction,readHand,type Hand} from '../lib/interaction';
+import {readHead} from '../lib/head';
+import {matchHandTracks} from '../lib/hand-tracks';
+import {GiftCoordinator} from '../lib/gift-coordinator';
+import {GiftPerformance,GiftGpuTimer} from '../lib/gift-performance';
+import type {GiftRenderer} from '../lib/gift-renderer';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Interaction, readHand } from "../lib/interaction";
-import { fireworkDone, headCollider, spawnFirework, stepFirework, type Firework } from "../lib/fireworks";
-
-type Scene = "fireworks" | "hearts" | "bubble";
-type Blendshape = { name: string; score: number };
-type TrackingResult = { faceLandmarks: number[] | null; blendshapes: Blendshape[]; hands: number[][]; handedness: string[] };
-const SCENES: Record<Scene, { label: string; hint: string; color: string }> = {
-  fireworks: { label: "大笑烟花", hint: "保持自然大笑，烟花会在头顶绽放。", color: "#ff6b8a" },
-  hearts: { label: "指尖爱心", hint: "用拇指和食指做小比心，左右手都可以。", color: "#a981ff" },
-  bubble: { label: "托举泡泡", hint: "食指停留生成泡泡，再从下方用手掌托住。", color: "#4ac7c2" },
-};
-
-export default function Home() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const frameRef = useRef<number | null>(null);
-  const lastFrameRef = useRef(0);
-  const lastFpsUpdateRef = useRef(0);
-  const workerRef = useRef<Worker | null>(null);
-  const captureFrameRef = useRef<number | null>(null);
-  const inferenceBusyRef = useRef(false);
-  const lastCaptureRef = useRef(0);
-  const latestTrackingRef = useRef<TrackingResult>({ faceLandmarks: null, blendshapes: [], hands: [], handedness: [] });
-  const fireworksRef = useRef<Firework[]>([]);
-  const laughActiveRef = useRef(false);
-  const lastBurstRef = useRef(0);
-  const sparkImageRef = useRef<HTMLImageElement | null>(null);
-  const heartImageRef = useRef<HTMLImageElement | null>(null);
-  const bubbleImageRef = useRef<HTMLImageElement | null>(null);
-  const interactionRef = useRef(new Interaction());
-  const handTracksRef = useRef<Array<{ id: string; label: string; wrist: { x: number; y: number }; seen: number }>>([]);
-  const handSequenceRef = useRef(0);
-  const [scene, setScene] = useState<Scene>("fireworks");
-  const [isCameraOn, setCameraOn] = useState(false);
-  const [isPaused, setPaused] = useState(false);
-  const [error, setError] = useState("");
-  const [fps, setFps] = useState(0);
-  const [trackingStatus, setTrackingStatus] = useState("未接入");
-  const debugModeRef = useRef(false);
-
-  useEffect(() => {
-    debugModeRef.current = new URLSearchParams(window.location.search).get("debug") === "1";
-  }, []);
-
-  useEffect(() => {
-    const image = new Image();
-    image.src = "/assets/firework-spark.svg";
-    sparkImageRef.current = image;
-    const heart = new Image(); heart.src = "/assets/heart-gift.svg"; heartImageRef.current = heart;
-    const bubble = new Image(); bubble.src = "/assets/bubble-gift.svg"; bubbleImageRef.current = bubble;
-  }, []);
-
-  const resizeCanvas = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-    const rect = video.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    canvas.width = Math.max(1, Math.round(rect.width * dpr));
-    canvas.height = Math.max(1, Math.round(rect.height * dpr));
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-  }, []);
-
-  useEffect(() => {
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-    const renderFrame = (now: number) => {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx) return;
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-      const dpr = canvas.clientWidth ? canvas.width / canvas.clientWidth : 1;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, width, height);
-      const dt = now - lastFrameRef.current;
-      const interaction = interactionRef.current;
-      if (interaction) { interaction.width = width; interaction.height = height; interaction.scene = scene; interaction.step(dt / 1000, now); }
-      if (debugModeRef.current && isCameraOn && !isPaused) {
-        ctx.save();
-        ctx.globalAlpha = 0.72;
-        ctx.strokeStyle = SCENES[scene].color;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([6, 7]);
-        const tracking = latestTrackingRef.current;
-        const indexTip = tracking.hands[0] ? [tracking.hands[0][8 * 3], tracking.hands[0][8 * 3 + 1]] : null;
-        if (indexTip && Number.isFinite(indexTip[0]) && Number.isFinite(indexTip[1])) {
-          ctx.setLineDash([]);
-          ctx.fillStyle = SCENES[scene].color;
-          ctx.beginPath();
-          ctx.arc((1 - indexTip[0]) * width, indexTip[1] * height, 5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-      }
-      if (scene === "fireworks" && isCameraOn && !isPaused) {
-        const shape = Object.fromEntries(latestTrackingRef.current.blendshapes.map(({ name, score }) => [name, score]));
-        const laughing = ((shape.mouthSmileLeft ?? 0) + (shape.mouthSmileRight ?? 0)) / 2 > 0.48 && (shape.jawOpen ?? 0) > 0.2;
-        const face = latestTrackingRef.current.faceLandmarks;
-        const video = videoRef.current;
-        const collider = headCollider(face, width, height, video?.videoWidth || width, video?.videoHeight || height);
-        const hx = collider ? collider.x / width : width * .5;
-        const hy = collider ? Math.max(36, collider.y - collider.ry - 28) : height * .2;
-        if (laughing && (!laughActiveRef.current || now - lastBurstRef.current > 2800) && now - lastBurstRef.current > 1200) {
-          if (fireworksRef.current.length >= 2) fireworksRef.current.shift();
-          fireworksRef.current.push(spawnFirework(hx, hy));
-          lastBurstRef.current = now;
-        }
-        laughActiveRef.current = laughing;
-        ctx.save();
-        for (let i = fireworksRef.current.length - 1; i >= 0; i -= 1) {
-          const firework = fireworksRef.current[i];
-          stepFirework(firework, dt / 1000, collider);
-          for (const particle of firework.particles) {
-            const alpha = Math.max(0, 1 - particle.age / particle.life);
-            const image = sparkImageRef.current;
-            if (particle.trail.length > 1) { ctx.globalAlpha = alpha * .35; ctx.strokeStyle = "#ffd6e0"; ctx.beginPath(); ctx.moveTo(particle.trail[0].x,particle.trail[0].y); for(const t of particle.trail.slice(1))ctx.lineTo(t.x,t.y); ctx.stroke(); }
-            if (image?.complete) { ctx.globalAlpha = alpha; ctx.drawImage(image, particle.x - 7, particle.y - 7, 14, 14); }
-            if (particle.hit > 0) { ctx.globalAlpha = Math.min(1, particle.hit * 8); ctx.fillStyle = "#fff4a8"; ctx.beginPath(); ctx.arc(particle.x, particle.y, 12, 0, Math.PI * 2); ctx.fill(); }
-          }
-          if (fireworkDone(firework)) fireworksRef.current.splice(i, 1);
-        }
-        ctx.restore();
-      }
-      if (interaction && isCameraOn && !isPaused && scene !== "fireworks") {
-        ctx.save();
-        for (const heart of interaction.hearts) {
-          if (!heart.active || !heartImageRef.current?.complete) continue;
-          ctx.globalAlpha = Math.max(0, 1 - Math.max(0, heart.age - 1.7) / .9);
-          ctx.drawImage(heartImageRef.current, heart.x - heart.size / 2, heart.y - heart.size / 2, heart.size, heart.size);
-        }
-        for (const bubble of interaction.bubbles) {
-          if (!bubble.active || !bubbleImageRef.current?.complete) continue;
-          const scale = bubble.pop >= 0 ? Math.max(0, 1 - bubble.pop / .32) : 1;
-          ctx.globalAlpha = bubble.pop >= 0 ? scale : Math.min(1, bubble.age * 4);
-          ctx.drawImage(bubbleImageRef.current, bubble.x - bubble.r * scale, bubble.y - bubble.r * scale, bubble.r * 2 * scale, bubble.r * 2 * scale);
-        }
-        ctx.restore();
-      }
-      if (dt > 0 && now - lastFpsUpdateRef.current > 500) {
-        setFps(Math.round(1000 / dt));
-        lastFpsUpdateRef.current = now;
-      }
-      lastFrameRef.current = now;
-      frameRef.current = requestAnimationFrame(renderFrame);
-    };
-    frameRef.current = requestAnimationFrame(renderFrame);
-    return () => {
-      window.removeEventListener("resize", resizeCanvas);
-      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-    };
-  }, [resizeCanvas, isCameraOn, isPaused, scene]);
-
-  useEffect(() => {
-    if (!isCameraOn) {
-      workerRef.current?.terminate();
-      workerRef.current = null;
-      return;
-    }
-    const worker = new Worker("/tracking-worker.js");
-    workerRef.current = worker;
-    worker.onmessage = (event: MessageEvent<{ type: string; message?: string; timestamp?: number; faceLandmarks?: number[] | null; blendshapes?: Blendshape[]; hands?: number[][]; handedness?: string[] }>) => {
-      if (event.data.type === "ready") setTrackingStatus("模型就绪");
-      if (event.data.type === "error") {
-        console.error("tracking worker", event.data.message);
-        setTrackingStatus(event.data.message ? `模型错误 · ${event.data.message.slice(0, 18)}` : "模型错误");
-      }
-      if (event.data.type === "result") {
-        latestTrackingRef.current = { faceLandmarks: event.data.faceLandmarks ?? null, blendshapes: event.data.blendshapes ?? [], hands: event.data.hands ?? [], handedness: event.data.handedness ?? [] };
-        const video = videoRef.current;
-        const interaction = interactionRef.current;
-        if (video && interaction && event.data.hands && typeof event.data.timestamp === "number" && performance.now() - event.data.timestamp <= 200) {
-          const sw = video.videoWidth || 640, sh = video.videoHeight || 480;
-          const parsed = event.data.hands.map((raw, index) => ({ hand: readHand(raw, `candidate-${index}`, video.clientWidth || 640, video.clientHeight || 400, sw, sh), label: event.data.handedness?.[index] ?? "Unknown" })).filter((item): item is { hand: NonNullable<typeof item.hand>; label: string } => Boolean(item.hand));
-          const used = new Set<string>();
-          const stableHands = parsed.map(({ hand, label }) => {
-            const match = handTracksRef.current.filter(track => track.label === label && !used.has(track.id)).sort((a, b) => Math.hypot(a.wrist.x - hand.wrist.x, a.wrist.y - hand.wrist.y) - Math.hypot(b.wrist.x - hand.wrist.x, b.wrist.y - hand.wrist.y))[0];
-            const id = match && Math.hypot(match.wrist.x - hand.wrist.x, match.wrist.y - hand.wrist.y) < Math.max(80, hand.span * 2) ? match.id : `${label}-${handSequenceRef.current++}`;
-            used.add(id); hand.id = id;
-            const current = handTracksRef.current.find(track => track.id === id);
-            if (current) { current.wrist = hand.wrist; current.seen = event.data.timestamp ?? performance.now(); }
-            else handTracksRef.current.push({ id, label, wrist: hand.wrist, seen: event.data.timestamp ?? performance.now() });
-            return hand;
-          });
-          handTracksRef.current = handTracksRef.current.filter(track => (event.data.timestamp ?? performance.now()) - track.seen < 400);
-          interaction.acceptHands(stableHands, event.data.timestamp);
-        }
-        inferenceBusyRef.current = false;
-        setTrackingStatus("追踪中");
-      }
-    };
-    worker.postMessage({ type: "start" });
-    return () => {
-      worker.terminate();
-      if (workerRef.current === worker) workerRef.current = null;
-      inferenceBusyRef.current = false;
-    };
-  }, [isCameraOn]);
-
-  useEffect(() => {
-    if (!isCameraOn || isPaused) {
-      if (captureFrameRef.current !== null) cancelAnimationFrame(captureFrameRef.current);
-      captureFrameRef.current = null;
-      return;
-    }
-    const capture = async (now: number) => {
-      const video = videoRef.current;
-      const worker = workerRef.current;
-      if (video && worker && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && now - lastCaptureRef.current >= 66 && !inferenceBusyRef.current) {
-        lastCaptureRef.current = now;
-        inferenceBusyRef.current = true;
-        try {
-          const image = await createImageBitmap(video);
-          worker.postMessage({ type: "frame", image, timestamp: now }, [image]);
-        } catch {
-          inferenceBusyRef.current = false;
-        }
-      }
-      captureFrameRef.current = requestAnimationFrame(capture);
-    };
-    captureFrameRef.current = requestAnimationFrame(capture);
-    return () => {
-      if (captureFrameRef.current !== null) cancelAnimationFrame(captureFrameRef.current);
-      captureFrameRef.current = null;
-    };
-  }, [isCameraOn, isPaused]);
-
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-    setCameraOn(false);
-    setPaused(false);
-    setTrackingStatus("未接入");
-    latestTrackingRef.current = { faceLandmarks: null, blendshapes: [], hands: [], handedness: [] };
-    interactionRef.current.reset();
-  }, []);
-
-  const startCamera = async () => {
-    setError("");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("当前页面没有可用的摄像头能力，请使用 HTTPS 浏览器打开。");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
-      streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      setCameraOn(true);
-    } catch (err) {
-      const name = err instanceof DOMException ? err.name : "UnknownError";
-      setError(name === "NotAllowedError" ? "摄像头权限未开启，请在浏览器地址栏允许访问。" : "摄像头暂时不可用，请关闭其他占用摄像头的页面后重试。");
-      stopCamera();
+type Orientation='landscape'|'portrait';
+const constraints=(o:Orientation):MediaTrackConstraints=>o==='portrait'
+ ? {facingMode:'user',width:{ideal:720},height:{ideal:1280},frameRate:{ideal:30}}
+ : {facingMode:'user',width:{ideal:1280},height:{ideal:720},aspectRatio:{ideal:16/9},...{resizeMode:'none'},frameRate:{ideal:30}};
+const gifts=[['✧','捂嘴彩带','双手捂嘴，星星彩带飘落并停留在头发和肩膀上。'],['♡','指尖爱心','拇指与食指比心，保持手势可连续生成爱心。'],['◌','托举泡泡','拇指和食指伸直，其余三指收拢；张开手掌可拨动泡泡。']];
+export default function Home(){
+ const video=useRef<HTMLVideoElement>(null),host=useRef<HTMLDivElement>(null),debugCanvas=useRef<HTMLCanvasElement>(null);
+ const [orientation,setOrientation]=useState<Orientation>('landscape'),[running,setRunning]=useState(false),[retry,setRetry]=useState(0),[debug,setDebug]=useState(false);
+ const [status,setStatus]=useState('开启摄像头后，直接做手势即可'),[error,setError]=useState(''),[ready,setReady]=useState<Record<string,boolean>>({});
+ const stream=useRef<MediaStream|null>(null),request=useRef(0),session=useRef(0),orientationRef=useRef(orientation),debugRef=useRef(debug);
+ const resetRef=useRef(()=>{}),configQueue=useRef<Promise<void>>(Promise.resolve());
+ orientationRef.current=orientation;debugRef.current=debug;
+ useEffect(()=>{const p=new URLSearchParams(location.search);setOrientation(p.get('orientation')==='portrait'?'portrait':'landscape');if(p.has('debug')||p.has('scene')){p.delete('debug');p.delete('scene');const query=p.toString();history.replaceState(null,'',`${location.pathname}${query?'?'+query:''}${location.hash}`);}},[]);
+ const toggleDebug=()=>{const enabled=!debugRef.current;debugRef.current=enabled;setDebug(enabled);const u=new URL(location.href);if(enabled)u.searchParams.set('debug','1');else u.searchParams.delete('debug');history.replaceState(null,'',u);};
+ const stop=()=>{setStatus("开启摄像头后，直接做手势即可");request.current++;resetRef.current();stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;if(video.current){video.current.srcObject=null;}setRunning(false);setReady({});};
+ async function start(){stop();setError('');const id=++request.current;setStatus('正在连接摄像头…');try{const s=await navigator.mediaDevices.getUserMedia({audio:false,video:constraints(orientationRef.current)});if(id!==request.current){s.getTracks().forEach(t=>t.stop());return;}stream.current=s;video.current!.srcObject=s;await video.current!.play();if(id===request.current)setRunning(true);}catch{if(id===request.current){setError('摄像头未能开启，请检查权限或占用情况');stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;}}}
+ useEffect(()=>()=>{request.current++;stream.current?.getTracks().forEach(t=>t.stop());},[]);
+ useEffect(()=>{resetRef.current();const track=stream.current?.getVideoTracks()[0];if(!track)return;let cancelled=false;configQueue.current=configQueue.current.catch(()=>{}).then(async()=>{if(cancelled||track.readyState!=='live')return;try{await track.applyConstraints(constraints(orientation));if(!cancelled)resetRef.current();}catch{if(!cancelled)setError('取景方向切换失败，请重新开启摄像头');}});return()=>{cancelled=true;};},[orientation]);
+ useEffect(()=>{
+  if(!running)return;
+  const v=video.current!,root=host.current!,id=++session.current,c=new Confetti(),i=new Interaction(true),g=new GiftCoordinator(),perf=new GiftPerformance();
+  c.externalGestures=true;i.scene='auto';i.autoReady={hearts:false,bubble:false};
+  let disposed=false,worker:Worker|null=null,renderer:GiftRenderer|null=null,gpu:GiftGpuTimer|null=null,frame=0,busy=false,next=Infinity,lastVideo=-1,lastFrame=0,lastUi=0,config='',workerReady=false,readyAt=0,faceAt=-Infinity,handsAt=-Infinity,handSeq=0,minimumTimestamp=0,contextLosses=0,recoveries=0,recoveryTimer:ReturnType<typeof setTimeout>|undefined;
+  const warmups=['hair','pose'];
+  let tracks:Array<{id:string;label:string;wrist:{x:number;y:number};seen:number}>=[];
+  const metrics:Record<string,{timestamp:number;duration:number;valid:boolean;error?:string;count:number}>={};
+  const reset=()=>{minimumTimestamp=performance.now();c.invalidate();g.reset();i.reset('auto');tracks=[];faceAt=handsAt=-Infinity;lastFrame=0;};resetRef.current=reset;
+  const size=()=>{const b=root.getBoundingClientRect();if(b.width&&b.height){if(c.width!==b.width||c.height!==b.height||(v.videoWidth&&c.sourceW!==v.videoWidth)||(v.videoHeight&&c.sourceH!==v.videoHeight))reset();c.resize(b.width,b.height,v.videoWidth||b.width,v.videoHeight||b.height);i.width=b.width;i.height=b.height;}};
+  const resize=new ResizeObserver(size);resize.observe(root);
+  const visibility=()=>{reset();};document.addEventListener('visibilitychange',visibility);
+  const syncConfig=(now:number)=>{const phase=g.phase(c,now),value=phase+':'+perf.low;if(config!==value){worker?.postMessage({type:'configure',sessionId:id,phase,low:perf.low});config=value;}};
+  const receive=(event:MessageEvent)=>{
+    const p=event.data;if(disposed||p.sessionId!==id)return;
+    if(p.type==='frame-done'){busy=false;return;}
+    if(p.type==='capture-schedule'){next=p.nextCaptureAt;return;}
+    if(p.type==='model'){if(p.task==='hair'){c.modelReady=!!p.ready;c.modelError=p.ready?'':p.message;}if(p.task==='pose')c.poseError=p.ready?'':p.message;return;}
+    if(p.type==='ready'){workerReady=true;readyAt=performance.now();setStatus('直接做手势即可');return;}
+    if(p.type==='error'){busy=false;next=Infinity;workerReady=false;setError('识别中断，请重试识别');return;}
+    if(p.type!=='confetti-result'||p.timestamp<minimumTimestamp||document.hidden)return;
+    const now=performance.now();metrics[p.task]={timestamp:p.timestamp,duration:p.duration,valid:p.valid,error:p.error,count:(metrics[p.task]?.count??0)+1};c.accept(p as ConfettiPacket,now);
+    if(p.task==='hair'){g.surfaceReady(c,now,!perf.protected&&!!renderer?.ready.confetti&&!renderer.renderer.getContext().isContextLost());syncConfig(now);}
+    if(p.task==='face'){faceAt=p.timestamp;i.acceptHead(p.valid&&now-p.timestamp<=200?readHead(p.faceLandmarks,c.width,c.height,c.sourceW,c.sourceH,p.timestamp,i.head):null);}
+    if(p.task==='hands'){
+      handsAt=p.timestamp;
+      const parsed=(p.valid&&!p.error&&now-p.timestamp<=200?p.hands:[]).map((raw:number[],index:number)=>({hand:readHand(raw,`candidate-${index}`,c.width,c.height,c.sourceW,c.sourceH,p.worldHands?.[index]),label:p.handedness?.[index]??'Unknown'})).filter((x:any)=>x.hand);
+      const matches=matchHandTracks(parsed,tracks,p.timestamp);
+      const hands:Hand[]=parsed.map(({hand,label}:any,index:number)=>{hand.id=matches[index]??`hand-${handSeq++}`;const prior=tracks.find(t=>t.id===hand.id);if(prior){prior.wrist=hand.wrist;prior.seen=p.timestamp;}else tracks.push({id:hand.id,label,wrist:hand.wrist,seen:p.timestamp});return hand;});
+      tracks=tracks.filter(t=>p.timestamp-t.seen<=200);
+      g.sample(c,hands,p.timestamp,now,!perf.protected&&!!renderer?.ready.confetti&&!renderer.renderer.getContext().isContextLost());
+      i.autoBlocked=perf.protected||g.blocked||!renderer||renderer.disposed||renderer.renderer.getContext().isContextLost();i.autoLow=perf.low;i.autoConfetti=c.playing;
+      i.acceptHands(g.filter(hands,i.autoBlocked),p.timestamp);syncConfig(now);
     }
   };
-
-  return (
-    <main className="shell">
-      <header className="topbar"><div className="brand"><span className="brand-mark">✦</span><span>Gift Lab</span></div><div className="status-pill"><span className={isCameraOn ? "status-dot live" : "status-dot"} />{isCameraOn ? "本地摄像头已连接" : "等待开启摄像头"}</div></header>
-      <section className="workspace">
-        <div className="intro"><div><p className="eyebrow">AR INTERACTION PROTOTYPE · T2</p><h1>让动作成为一份看得见的礼物</h1><p className="subcopy">爱心和泡泡已进入行为验证，正式美术素材随后替换。</p></div><div className="scope-note"><strong>本地处理</strong><span>视频不会录制或上传</span></div></div>
-        <div className="stage-grid">
-          <section className="camera-card" aria-label="摄像头预览"><div className="camera-stage"><video ref={videoRef} className="camera-video" muted playsInline aria-label="摄像头画面" /><canvas ref={canvasRef} className="debug-layer" aria-hidden="true" />{!isCameraOn && <div className="camera-empty"><div className="camera-icon">◉</div><p>开启摄像头开始体验</p><span>首次使用时浏览器会请求权限</span></div>}{isPaused && isCameraOn && <div className="paused-cover"><span>互动已暂停</span><small>预览仍在运行，恢复后会重新建立追踪</small></div>}<div className="stage-label"><span className="scene-chip" style={{ background: SCENES[scene].color }}>{SCENES[scene].label}</span><span className="debug-chip">实时互动</span></div></div>{error && <p className="error-text" role="alert">{error}</p>}<div className="camera-actions">{!isCameraOn ? <button className="primary-button" onClick={startCamera}>开启摄像头</button> : <button className="secondary-button" onClick={stopCamera}>关闭摄像头</button>}{isCameraOn && <button className="secondary-button" onClick={() => setPaused((value) => { if (!value) { latestTrackingRef.current = { faceLandmarks: null, blendshapes: [], hands: [], handedness: [] }; fireworksRef.current = []; interactionRef.current.reset(); } return !value; })}>{isPaused ? "恢复互动" : "暂停互动"}</button>}</div></section>
-          <aside className="control-panel"><div className="panel-heading"><div><p className="eyebrow">SCENE SELECT</p><h2>选择互动礼物</h2></div><span className="version-tag">P0</span></div><div className="scene-list">{(Object.keys(SCENES) as Scene[]).map((key) => <button key={key} className={`scene-option ${scene === key ? "selected" : ""}`} onClick={() => { setScene(key); setPaused(false); interactionRef.current.reset(key); }} aria-pressed={scene === key}><span className="scene-swatch" style={{ background: SCENES[key].color }}>{key === "fireworks" ? "✹" : key === "hearts" ? "♡" : "◌"}</span><span className="scene-text"><strong>{SCENES[key].label}</strong><small>{SCENES[key].hint}</small></span><span className="scene-arrow">↗</span></button>)}</div><div className="panel-divider" /><div className="readiness"><span className="readiness-icon">⌁</span><div><strong>{isCameraOn ? trackingStatus : "需要摄像头输入"}</strong><span>{isCameraOn ? "单 Worker · 单帧在途 · 15 FPS 上限" : "开启后将进入本地实验"}</span></div></div><div className="metrics"><div><span>渲染 FPS</span><strong>{isCameraOn ? fps : "—"}</strong></div><div><span>推理状态</span><strong>{trackingStatus}</strong></div><div><span>活跃实例</span><strong>≤ 240</strong></div></div></aside>
-        </div>
-      </section>
-      <footer className="footer"><span>原型状态：T2 爱心与泡泡行为验证</span><span>当前视觉为测试素材，正式美术将独立替换</span></footer>
-    </main>
-  );
+  const onLost=(e:Event)=>{e.preventDefault();if(disposed)return;contextLosses++;i.autoBlocked=true;reset();setError('画面恢复中…');clearTimeout(recoveryTimer);recoveryTimer=setTimeout(()=>{if(!disposed&&renderer?.renderer.getContext().isContextLost())void recoverRenderer();},1500);};
+  const recoverRenderer=async()=>{if(disposed)return;if(recoveries++>=1){setError('画面恢复失败，请重试识别');return;}clearTimeout(recoveryTimer);gpu?.dispose();gpu=null;const old=renderer;renderer=null;if(old){old.renderer.domElement.removeEventListener('webglcontextlost',onLost);old.dispose();old.renderer.domElement.remove();}await createRenderer();if(!disposed)setError('');};
+  const createRenderer=async()=>{const {GiftRenderer}=await import('../lib/gift-renderer');if(disposed)return;const r=new GiftRenderer(v);renderer=r;root.appendChild(r.renderer.domElement);r.renderer.domElement.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';r.renderer.domElement.addEventListener('webglcontextlost',onLost);r.renderer.domElement.addEventListener('webglcontextrestored',()=>{if(!disposed&&renderer===r)void recoverRenderer();});await r.load();if(disposed)return;gpu=new GiftGpuTimer(r.renderer.getContext() as WebGL2RenderingContext);i.autoReady={hearts:r.ready.hearts,bubble:r.ready.bubble};setReady({...r.ready});if(Object.keys(r.errors).length)setError('部分礼物素材未准备好，其余礼物仍可使用');};
+  // Sequential material warm-up before inference avoids simultaneous GPU initialization.
+  void createRenderer().then(()=>{if(disposed)return;worker=new Worker('/tracking-worker.js');worker.onmessage=receive;worker.onerror=()=>{busy=false;next=Infinity;workerReady=false;setError('识别中断，请重试识别');};worker.postMessage({type:'start',scene:'auto',sessionId:id,timeOrigin:performance.timeOrigin});}).catch(()=>setError('礼物画面准备失败，请重试'));
+  const tick=(now:number)=>{
+    if(disposed)return;frame=requestAnimationFrame(tick);
+    if(document.hidden){lastFrame=0;return;}
+    const dt=lastFrame?now-lastFrame:16.67;lastFrame=now;size();
+    g.expire(now);const stale=now-handsAt>200;
+    i.autoBlocked=perf.protected||g.blocked||stale||!renderer||renderer.disposed||renderer.renderer.getContext().isContextLost();i.autoLow=perf.low;i.autoConfetti=c.playing;
+    c.low=perf.low;c.update(dt,now);i.step(Math.min(dt,40)/1000,now);syncConfig(now);
+    if(renderer&&!renderer.disposed&&!renderer.renderer.getContext().isContextLost()){gpu?.begin();renderer.draw(c,i,v);gpu?.end();}
+    if(workerReady&&!warmups.length&&now-readyAt>4000)perf.update(dt,now,now-faceAt<=250&&now-handsAt<=200);
+    if(worker&&workerReady&&!busy&&warmups.length&&now-readyAt>500){busy=true;worker.postMessage({type:'warmup',task:warmups.shift(),sessionId:id});}
+    if(worker&&workerReady&&!busy&&now>=next&&v.readyState>=2&&v.currentTime!==lastVideo){busy=true;lastVideo=v.currentTime;const sampled=now;void createImageBitmap(v).then(image=>{if(disposed||document.hidden||sampled<minimumTimestamp){image.close();busy=false;return;}try{worker!.postMessage({type:'frame',sessionId:id,timestamp:sampled,image},[image]);}catch{image.close();busy=false;}}).catch(()=>{busy=false;});}
+    if(now-lastUi>500){lastUi=now;
+      const confettiStatus=c.playing?'彩带播放中':!g.armed?'任意一只手离嘴片刻，即可准备下一轮':g.message;
+      const tierNotice=perf.low?` · 性能低档：下一轮彩带 ${confettiCount(c.height>c.width,true)} 颗，大小不变`:'';
+      setStatus((perf.protected?'设备繁忙，暂缓新增礼物':!workerReady?'正在准备识别…':metrics.hands?.error?'手部识别暂不可用，已停止新增礼物':confettiStatus||(!c.modelReady?'彩带识别准备中；可使用已就绪的礼物':c.poseError?'肩膀识别不可用，彩带仅停留在头发':'爱心和泡泡由先确认的手发射，另一只手可拨动礼物'))+tierNotice);
+      if(debugRef.current){const canvas=debugCanvas.current;if(canvas){canvas.width=c.width;canvas.height=c.height;const ctx=canvas.getContext('2d');if(ctx)renderer?.confetti.debug(ctx,c,now);}}
+    }
+  };frame=requestAnimationFrame(tick);
+  return()=>{disposed=true;resetRef.current=()=>{};cancelAnimationFrame(frame);clearTimeout(recoveryTimer);resize.disconnect();document.removeEventListener('visibilitychange',visibility);worker?.terminate();gpu?.dispose();if(renderer){renderer.renderer.domElement.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.renderer.domElement.remove();}c.invalidate();i.reset();};
+ },[running,retry]);
+ return <main className="shell"><header className="topbar"><div className="brand">✦ Gift Lab</div><span>{running?'手势互动已开启':'等待开启摄像头'}</span></header><section className="workspace"><div className="intro"><div><p className="eyebrow">GESTURE GIFTS</p><h1>做个手势，礼物自然出现</h1><p>比心、发射泡泡，或双手捂嘴唤起星星彩带。</p></div><div className="scope-note"><strong>本地处理</strong><span>视频不会录制或上传</span></div></div><div className="stage-grid"><section className="camera-card"><div className={`camera-stage ${orientation}`}><video ref={video} className="camera-video" muted playsInline aria-label="摄像头画面"/><div ref={host} style={{position:'absolute',inset:0}}/>{debug&&<canvas ref={debugCanvas} className="debug-layer"/>}{!running&&<div className="camera-empty">开启摄像头，直接做手势</div>}<div className="stage-label"><span className="scene-chip" style={{background:'#a981ff'}}>手势礼物</span><span className="debug-chip">实时互动</span></div></div><p role="status">{status}</p>{error&&<p role="alert" className="error-text">{error}</p>}<div className="camera-actions"><button className="primary-button" onClick={running?stop:start}>{running?'关闭摄像头':'开启摄像头'}</button>{running&&<><button className="secondary-button" onClick={()=>{resetRef.current();setError('');setRetry(n=>n+1);}}>重试识别</button></>}<button className="secondary-button" aria-pressed={debug} onClick={toggleDebug}>{debug?'隐藏识别信息':'显示识别信息'}</button></div></section><aside className="control-panel"><section className="orientation-select"><p className="eyebrow">01 · 画面方向</p><h2>选择横屏或竖屏</h2><div className="orientation-options">{(['landscape','portrait'] as const).map(o=><button key={o} className={`orientation-option ${orientation===o?'selected':''}`} aria-pressed={orientation===o} onClick={()=>{setOrientation(o);const u=new URL(location.href);u.searchParams.set('orientation',o);history.replaceState(null,'',u);}}><span className={`format-icon ${o}`}/><strong>{o==='landscape'?'横屏':'竖屏'}</strong><small>{o==='landscape'?'16:9':'9:16'}</small></button>)}</div></section><div className="panel-divider"/><p className="eyebrow">02 · 手势介绍</p><h2>作出对应手势，触发互动特效（完整露出整个手部，更容易识别）</h2><div className="scene-list">{gifts.map(([icon,name,hint],n)=><article className="scene-option" key={name} style={{cursor:'default'}}><span className="scene-swatch" style={{background:['#f1b848','#a981ff','#4ac7c2'][n]}}>{icon}</span><div className="scene-text"><strong>{name}</strong><small>{hint}</small>{running&&!ready[['confetti','hearts','bubble'][n]]&&<small>准备中</small>}</div></article>)}</div></aside></div></section></main>;
 }

@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {Interaction} from '../lib/interaction.ts';
+import {GiftCoordinator} from '../lib/gift-coordinator.ts';
+import {GiftPerformance} from '../lib/gift-performance.ts';
+import '../public/gift-scheduler.js';
+const hand=(id,kind)=>({id,span:60,tip:{x:180,y:220},anchor:{x:180,y:280},wrist:{x:180,y:300},heartOrigin:{x:180,y:220},heartDirection:{x:0,y:-1},heart:kind==='heart',heartPossible:false,gun:kind==='bubble',gunDirection:{x:0,y:-1},palm:false,pointing:false,reach:0});
+const e=new Interaction(true);e.reset('auto');e.width=640;e.height=360;
+for(let n=0;n<120;n++){const now=n*1000/60;if(n%5===0)e.acceptHands([hand('A','heart'),hand('B','bubble')],now);e.step(1/60,now);}
+assert(e.emittedHearts>0&&e.emittedBubbles===0,'first confirmed hand owns both gift channels');assert(e.bubbles.filter(b=>b.active).length<=32);assert(e.hearts.filter(h=>h.active).length<=12);
+const g=new GiftCoordinator();assert.deepEqual(g.filter([{...hand('A','heart'),gun:true}],false).map(h=>[h.heart,h.gun]),[[false,false]]);
+const emitted=e.emittedHearts;e.acceptHands([hand('A','heart')],0);assert.equal(e.emittedHearts,emitted,'old samples cannot emit');
+e.autoBlocked=true;for(let n=120;n<180;n++){e.acceptHands([hand('A','heart'),hand('B','bubble')],n*17);e.step(.017,n*17);}assert.equal(e.emittedHearts,emitted,'blocked gestures cannot emit');
+const fair=new Interaction();fair.reset('auto');for(let n=0;n<25;n++){fair.acceptHands(n%2?[hand('B','heart'),hand('A','heart')]:[hand('A','heart'),hand('B','heart')],n*100);fair.step(.1,n*100);}const owners=fair.hearts.filter(h=>h.active).map(h=>h.owner);assert(owners.every(x=>x==='A'),'stable primary hand independent of result order');
+fair.autoConfetti=true;const old=fair.hearts.filter(h=>h.active).length;fair.acceptHands([hand('A','heart'),hand('B','heart')],2600);assert.equal(fair.hearts.filter(h=>h.active).length,old,'lower cap does not delete existing hearts');
+const last={hands:0,face:0,hair:0,pose:0},cost={hands:20,face:15,hair:30,pose:20};
+assert.equal(GiftScheduler.select(101,'playing',false,last,cost,new Set(),700).task,'hands');
+assert.equal(GiftScheduler.rates('idle',false).hair,0);assert.equal(GiftScheduler.rates('playing',false).hands,12);
+assert.equal(GiftScheduler.select(101,'playing',false,last,cost,new Set(),0).task,null);
+const perf=new GiftPerformance();for(let n=0;n<600;n++)perf.update(40,n*40,true);assert(perf.low&&perf.protected);for(let n=600;n<1600;n++)perf.update(16,n*40,true);assert(perf.low&&!perf.protected,'recovery never upgrades tier');
+console.log('PASS auto coexistence, conflict, old results, blocking, fairness, peak caps, priority scheduler, protective downgrade');
