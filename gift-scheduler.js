@@ -1,6 +1,6 @@
 (function(root){
  function rates(phase){const playing=phase==='playing',finish=phase==='finishing',candidate=phase==='candidate'||phase==='preparing';return {hands:12,face:10,hair:playing?8:finish?5:candidate?6:0,pose:playing?6:finish?4:candidate?6:0};}
- function select(now,phase,last,cost,unavailable,budget,preparedSamples=0){
+ function select(now,phase,last,cost,unavailable,budget,preparedSamples,recovery){
   const hz=rates(phase),base=['hands','face'].filter(t=>!unavailable.has(t));
   const due=t=>last[t]+1000/hz[t],deadline=t=>last[t]+(t==='hands'?200:250);
   const estimate=t=>cost[t]*1.15, gap=34;
@@ -12,9 +12,11 @@
    return true;
   }
   const extra=['hair','pose'].filter(t=>hz[t]&&!unavailable.has(t)&&due(t)<=now);
+  {for(const t of ['hair','pose']){const state=recovery[t];if(!extra.includes(t))continue;if(fits(t)){state.blockedAt=null;}else if(state.blockedAt===null)state.blockedAt=now;}}
   const preparing=phase==='candidate'||phase==='preparing';
   extra.sort((a,b)=>preparing&&preparedSamples<2?(a==='hair'?-1:1):due(a)-due(b));
   for(const t of extra)if(budget>=estimate(t)&&fits(t))return {task:t,nextCaptureAt:now,reason:'segmentation-window'};
+  if(budget>=650&&base.every(t=>now-last[t]<=100)){for(const t of extra){const state=recovery[t];if(!state.used&&state.blockedAt!==null&&now-state.blockedAt>=2000)return {task:t,nextCaptureAt:now,reason:'remeasure'};}}
   const expired=base.filter(t=>due(t)<=now).sort((a,b)=>due(a)-due(b))[0];
   if(expired&&budget>=estimate(expired))return {task:expired,nextCaptureAt:now,reason:'base-due'};
   const next=base.length?Math.min(...base.map(due)):now+100;
