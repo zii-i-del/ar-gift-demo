@@ -8,7 +8,7 @@ const source=fs.readFileSync('lib/heart-renderer.ts','utf8');
 const prefix=source.slice(source.indexOf('  draw('),source.indexOf('    let moteCount=0;'))+'}';
 const code=ts.transpileModule(`class Subject{${prefix}}`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 const Subject=new Function('heartDepthLayout','orderHearts','HEART_LIFETIME',code+';return Subject;')(heartDepthLayout,orderHearts,1.9);
-const s=new Subject();Object.assign(s,{ready:true,shared:true,renderSize:new THREE.Vector2(),ordered:[],ranks:[],modelRadius:1,videoPlane:new THREE.Mesh(new THREE.PlaneGeometry(),new THREE.MeshBasicMaterial()),camera:new THREE.OrthographicCamera(-1,1,1,-1,.1,2000),renderer:{getSize:v=>v.set(640,360),setSize(){}}});
+const s=new Subject();Object.assign(s,{ready:true,shared:true,renderSize:new THREE.Vector2(),ordered:[],ranks:[],modelRadius:1,camera:new THREE.OrthographicCamera(-1,1,1,-1,.1,2000),renderer:{getSize:v=>v.set(640,360),setSize(){}}});
 let updates=0;const update=s.camera.updateProjectionMatrix.bind(s.camera);s.camera.updateProjectionMatrix=()=>{updates++;update();};
 const h=[{active:true,age:.2,size:40,birthOrder:0}];
 function check(w,hgt){

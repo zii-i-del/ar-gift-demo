@@ -12,7 +12,7 @@ let pending=[];
 class Loader {loadAsync(url){return new Promise((resolve,reject)=>pending.push({url,resolve,reject}));}}
 const Subject=new Function('THREE','GLTFLoader','animatedHeartRadius','HEART_CAPACITY',compiled+'; return Subject;')(THREE,Loader,()=>1,2);
 function subject(){
- const s=new Subject();Object.assign(s,{disposed:false,ready:false,slots:[],assetTextures:new Set(),bodyCenter:new THREE.Vector3(),scene:new THREE.Scene(),motes:new THREE.Mesh(),videoPlane:new THREE.Mesh(),environment:{dispose(){}},shared:true});return s;
+ const s=new Subject();Object.assign(s,{disposed:false,ready:false,slots:[],assetTextures:new Set(),bodyCenter:new THREE.Vector3(),scene:new THREE.Scene(),motes:new THREE.Mesh(),environment:{dispose(){}},shared:true});return s;
 }
 function asset(animation=true,color=0xffaac5){
  const geometry=new THREE.BoxGeometry(),texture=new THREE.Texture(),material=new THREE.MeshPhysicalMaterial({color,map:texture,emissiveMap:texture});

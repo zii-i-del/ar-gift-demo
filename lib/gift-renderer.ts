@@ -19,7 +19,7 @@ export class GiftRenderer {
   constructor(video:HTMLVideoElement){
     this.videoTexture=new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;
     this.confetti=new ConfettiRenderer(this.renderer);
-    this.hearts=new HeartRenderer(true,this.renderer);
+    this.hearts=new HeartRenderer(this.renderer);
     this.bubbles=new BubbleRenderer(this.renderer,this.videoTexture);
     this.renderer.autoClear=false;this.renderer.setClearColor(0,0);
   }
@@ -42,7 +42,7 @@ export class GiftRenderer {
     if(stars){r.toneMapping=THREE.NoToneMapping;this.confetti.draw(c);}
     if(hearts){
       r.clearDepth();r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1;
-      this.hearts.draw(i.hearts,c.width,c.height,undefined,undefined,undefined,i.heartTails,i.heartPetals);
+      this.hearts.draw(i.hearts,c.width,c.height,undefined,undefined,i.heartPetals);
     }
     if(bubbles){r.clearDepth();r.toneMapping=THREE.NoToneMapping;this.bubbles.draw(i.bubbles,c.width,c.height,video);}
   }
