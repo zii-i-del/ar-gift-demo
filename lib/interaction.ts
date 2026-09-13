@@ -237,15 +237,11 @@ export function readHand(
     gunForward > 0.7 &&
     gunSeparation > 0.6;
   const pose = gunPose3D(world, projectedStraight);
-  // Keep the visible hook veto; separate perspective-sensitive distance gates.
+  // Reject clear hooks; mild projected bends cannot veto a valid 3D pose.
   const gunReason =
     Math.max(bend1, bend2) > 45 || indexRatio < 0.88
       ? '二维食指明确弯曲'
-      : Math.max(bend1, bend2) > 25
-        ? '二维食指伸直证据不足'
-        : indexRatio < 0.97
-          ? '食指整体伸展证据不足'
-          : pose.state !== 'valid'
+      : pose.state !== 'valid'
             ? pose.reason
             : gunForward < 0.5
               ? '食指朝向投影不足'

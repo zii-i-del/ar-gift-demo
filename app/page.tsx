@@ -35,9 +35,10 @@ export default function Home(){
   const finishRequest=()=>{clearTimeout(requestTimer);requestTimer=undefined;busy=false;waiting='';};
   const failRequest=()=>{finishRequest();worker?.terminate();workerReady=false;interrupted=true;next=Infinity;handsAt=-Infinity;g.reset();i.autoBlocked=true;setError('识别中断，请重试识别');};
   const beginRequest=(stage:string,timeout:number)=>{busy=true;waiting=stage;requestTimer=setTimeout(failRequest,timeout);};
+  let bubbleReasons:string[]=[];
   let tracks:Array<{id:string;label:string;wrist:{x:number;y:number};seen:number}>=[];
   const metrics:Record<string,{timestamp:number;duration:number;valid:boolean;error?:string;count:number}>={};
-  const reset=()=>{minimumTimestamp=performance.now();c.invalidate();g.reset();i.reset();tracks=[];handsAt=-Infinity;lastFrame=0;};resetRef.current=reset;
+  const reset=()=>{minimumTimestamp=performance.now();c.invalidate();g.reset();i.reset();tracks=[];bubbleReasons=[];handsAt=-Infinity;lastFrame=0;};resetRef.current=reset;
   const size=()=>{
     if(disposed)return;
     const {width,height}=root.getBoundingClientRect();
@@ -64,6 +65,7 @@ export default function Home(){
     if(p.task==='hands'){
       handsAt=p.timestamp;
       const parsed=(p.valid&&!p.error&&now-p.timestamp<=200?p.hands:[]).map((raw:number[],index:number)=>({hand:readHand(raw,`candidate-${index}`,c.width,c.height,c.sourceW,c.sourceH,p.worldHands?.[index]),label:p.handedness?.[index]??'Unknown'})).filter((x:any)=>x.hand);
+      if(debugRef.current)bubbleReasons=parsed.map(({hand,label}:any)=>`${label}: ${hand.gunReason}`);
       const matches=matchHandTracks(parsed,tracks,p.timestamp);
       const hands:Hand[]=parsed.map(({hand,label}:any,index:number)=>{hand.id=matches[index]??`hand-${handSeq++}`;const prior=tracks.find(t=>t.id===hand.id);if(prior){prior.wrist=hand.wrist;prior.seen=p.timestamp;}else tracks.push({id:hand.id,label,wrist:hand.wrist,seen:p.timestamp});return hand;});
       tracks=tracks.filter(t=>p.timestamp-t.seen<=200);
@@ -119,7 +121,7 @@ export default function Home(){
     if(now-lastUi>500){lastUi=now;
       const confettiStatus=c.playing?'彩带播放中':!g.armed?'任意一只手离嘴片刻，即可准备下一轮':g.message;
       setStatus((interrupted?'识别中断，请重试识别':!workerReady?'正在准备识别，请稍候…':c.modelError?'彩带识别暂不可用，请重试识别':metrics.hands?.error?'手部识别暂不可用，已停止新增礼物':confettiStatus||(!c.modelReady?'彩带识别准备中，请稍候；爱心和泡泡可正常使用':c.poseError?'肩膀识别不可用，彩带仅停留在头发':'爱心和泡泡由先确认的手发射，另一只手可拨动礼物')));
-      if(debugRef.current){const canvas=debugCanvas.current;if(canvas){canvas.width=c.width;canvas.height=c.height;const ctx=canvas.getContext('2d');if(ctx){renderer?.confetti.debug(ctx,c,now);ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(`识别：${waiting||'等待下一帧'} · ${scheduleReason} · ${g.reason}`,12,c.height-14);}}}
+      if(debugRef.current){const canvas=debugCanvas.current;if(canvas){canvas.width=c.width;canvas.height=c.height;const ctx=canvas.getContext('2d');if(ctx){renderer?.confetti.debug(ctx,c,now);ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(`泡泡：${bubbleReasons.join('；')||'未检测到可用手部'}`,12,c.height-32);ctx.fillText(`识别：${waiting||'等待下一帧'} · ${scheduleReason} · ${g.reason}`,12,c.height-14);}}}
     }
   };frame=requestAnimationFrame(tick);
   return()=>{disposed=true;finishRequest();resetRef.current=()=>{};cancelAnimationFrame(frame);clearTimeout(recoveryTimer);resize.disconnect();v.removeEventListener('loadedmetadata',size);v.removeEventListener('resize',size);document.removeEventListener('visibilitychange',visibility);worker?.terminate();if(renderer){renderer.renderer.domElement.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.renderer.domElement.remove();}c.invalidate();i.reset();};
