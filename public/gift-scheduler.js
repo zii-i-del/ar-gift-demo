@@ -1,7 +1,7 @@
 (function(root){
- function rates(phase,low){const playing=phase==='playing',finish=phase==='finishing',candidate=phase==='candidate'||phase==='preparing';return {hands:12,face:10,hair:playing?(low?5:8):finish?5:candidate?6:0,pose:playing?(low?4:6):finish?4:candidate?6:0};}
- function select(now,phase,low,last,cost,unavailable,budget,preparedSamples=0){
-  const hz=rates(phase,low),base=['hands','face'].filter(t=>!unavailable.has(t));
+ function rates(phase){const playing=phase==='playing',finish=phase==='finishing',candidate=phase==='candidate'||phase==='preparing';return {hands:12,face:10,hair:playing?8:finish?5:candidate?6:0,pose:playing?6:finish?4:candidate?6:0};}
+ function select(now,phase,last,cost,unavailable,budget,preparedSamples=0){
+  const hz=rates(phase),base=['hands','face'].filter(t=>!unavailable.has(t));
   const due=t=>last[t]+1000/hz[t],deadline=t=>last[t]+(t==='hands'?200:250);
   const estimate=t=>cost[t]*1.15, gap=34;
   base.sort((a,b)=>deadline(a)-deadline(b));

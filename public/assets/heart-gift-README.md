@@ -7,7 +7,7 @@
 - 节点：Heart_Rig、Heart_Inner、Heart_Glass
 - 动画：Heart_Grow，3 秒，100 fps 导出采样
 - 预览：heart-gift-preview.png，实际 Blender 渲染，透明背景
-- 本地网页：http://localhost:3001/heart-preview
+- 旧材质对比网页已删除；本文记录初版素材，不代表当前直播实现。
 
 前 0.5 秒生长并回弹，随后漂浮与呼吸，2.35–3 秒缩小渐隐。GLB 动画承载缩放；世界移动、跟手和透明度由网页生命周期控制，透明度不是 GLB 内烘焙动画。
 

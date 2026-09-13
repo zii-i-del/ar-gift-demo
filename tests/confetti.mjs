@@ -18,29 +18,30 @@ const surface = (id = 'hair', y = 1) => ({
   valid: true,
 });
 const s = surface();
-const hit = firstContact({ x: 100, y: 0 }, { x: 100, y: 200 }, 5, s);
+const contactStar={w:10,h:10,angle:0,flip:Math.PI,state:1};
+const hit = firstContact({ x: 100, y: 0 }, { x: 100, y: 200 }, s, contactStar);
 assert.ok(hit);
 assert.equal(hit.t, 0.475);
 assert.equal(hit.y, 0.95);
 assert.equal(
-  firstContact({ x: 100, y: 150 }, { x: 100, y: 170 }, 5, s),
+  firstContact({ x: 100, y: 150 }, { x: 100, y: 170 }, s, contactStar),
   null,
   'no attraction from inside',
 );
 assert.equal(
-  firstContact({ x: 100, y: 150 }, { x: 100, y: 0 }, 5, s),
+  firstContact({ x: 100, y: 150 }, { x: 100, y: 0 }, s, contactStar),
   null,
   'upward crossing cannot attach',
 );
 assert.equal(
-  firstContact({ x: 700, y: 0 }, { x: 700, y: 200 }, 5, s),
+  firstContact({ x: 700, y: 0 }, { x: 700, y: 200 }, s, contactStar),
   null,
   'outside segment',
 );
 const moving = surface();
 moving.previous.y = 50;
 assert.ok(
-  firstContact({ x: 100, y: 130 }, { x: 100, y: 130 }, 5, moving),
+  firstContact({ x: 100, y: 130 }, { x: 100, y: 130 }, moving, contactStar),
   'moving surface sweep',
 );
 for (const a of [0, 0.2, -0.4]) {
@@ -179,7 +180,7 @@ for (let t = 9500; t <= 9800; t += 50) {
 assert.equal(trigger.armed, true);
 const perf = new Confetti();
 for (let t = 1000; t < 10000; t += 40) perf.update(40, t);
-assert.equal(perf.low, true, 'sustained slow frames degrade');
+assert.equal(perf.count, 160, 'slow frames retain the fixed particle budget');
 console.log(
   'PASS gesture positives/negatives, hold/release gate, sustained performance degradation',
 );
@@ -232,7 +233,7 @@ assert.ok(
 );
 const thirty = new Confetti();
 for (let i = 0; i < 400; i++) thirty.update(1000 / 30, 1000 + (i * 1000) / 30);
-assert.equal(thirty.low, false, 'exact 30 FPS does not falsely degrade');
+assert.equal(thirty.count, 160, '30 FPS retains the fixed particle budget');
 const expired = new Confetti();
 expired.started = 0;
 expired.count = 0;

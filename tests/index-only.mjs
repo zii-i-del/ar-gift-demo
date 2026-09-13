@@ -8,13 +8,13 @@ const resting=base.map(p=>[...p]);resting[2]=[.39,.66];resting[3]=[.46,.56];rest
 for(const mirror of [false,true]) {
  const r=classify(resting,mirror);
  assert.equal(r.pointing,true,'thumb across index base is ordinary pointing');
- const emitter=new Interaction();emitter.reset('bubble');
+ const emitter=new Interaction();emitter.reset();
  for(let t=0;t<=500;t+=50)emitter.acceptHands([r],t);
  assert.equal(emitter.emittedBubbles,0,'index dwell no longer emits without extended thumb');
  assert.equal(classify(base,mirror).pointing,true,'straight index accepted');
  for(const points of [thumb,heart]) {
  const h=classify(points,mirror);assert.equal(h.pointing,false,'thumb/heart rejected');
- const e=new Interaction();e.reset('bubble');for(let t=0;t<1500;t+=67)e.acceptHands([h],t);assert.equal(e.emittedBubbles,0);
+ const e=new Interaction();e.reset();for(let t=0;t<1500;t+=67)e.acceptHands([h],t);assert.equal(e.emittedBubbles,0);
  }
 }
 console.log('PASS: both hands index accepted; thumb and crossed heart do not emit');

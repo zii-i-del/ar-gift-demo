@@ -26,7 +26,6 @@ export default function ConfettiMaterialPreview() {
           angle: ((i % 4) - 0.5) * 0.22,
           flip: 0,
           color: i % 4,
-          triangle: i % 10 >= 7,
           front: false,
           alpha: 1,
         });

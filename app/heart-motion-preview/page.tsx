@@ -7,7 +7,7 @@ export default function HeartMotionPreview(){
  useEffect(()=>{
   let stopped=false,frame=0,cleanup=()=>{};
   import('../../lib/heart-renderer').then(async({HeartRenderer})=>{
-   const renderers=[new HeartRenderer('v5',true,true),new HeartRenderer('v5',true,true,true)];
+   const renderers=[new HeartRenderer(),new HeartRenderer(true)];
    cleanup=()=>renderers.forEach(r=>{r.renderer.domElement.remove();r.dispose();});
    try{
     await Promise.all(renderers.map(r=>r.load()));if(stopped)return;

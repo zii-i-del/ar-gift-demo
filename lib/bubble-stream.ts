@@ -1,4 +1,4 @@
-export const BUBBLE_CAPACITY=96;
+export const BUBBLE_CAPACITY=32;
 export const BUBBLE_INTERVAL=125;
 export const BUBBLE_LIFETIME=5;
 export function bubbleRadius(target:number,age:number){

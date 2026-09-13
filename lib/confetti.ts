@@ -59,8 +59,6 @@ export type Particle = {
   aimedShoulder?: string;
   interior?: boolean;
   crownOnly?: boolean;
-  triangle?: boolean;
-  star?: boolean;
   backFace?: boolean;
   hairFixed?: boolean;
   settleFlip?: number;
@@ -98,8 +96,6 @@ export function paperSupport(
     h: number;
     angle: number;
     flip: number;
-    triangle?: boolean;
-    star?: boolean;
     state?: number;
     backFace?: boolean;
     tiltAxis?: number;
@@ -122,25 +118,16 @@ export function paperSupport(
   const dx = rx * xx + ry * xy,
     dy = rx * xy + ry * yy,
     h = p.h;
-  if (p.star) {
-    let support = -Infinity;
-    for (const [x, y] of STAR_POINTS)
-      support = Math.max(support, dx * x * p.w + dy * y * h);
-    return support;
-  }
-  if (!p.triangle) return Math.abs(dx) * p.w * 0.5 + Math.abs(dy) * h * 0.5;
-  return Math.max(
-    -dx * p.w * 0.5 + dy * h * 0.5,
-    dx * p.w * 0.5 + dy * h * 0.5,
-    -dy * h * 0.5,
-  );
+  let support = -Infinity;
+  for (const [x, y] of STAR_POINTS)
+    support = Math.max(support, dx * x * p.w + dy * y * h);
+  return support;
 }
 export function firstContact(
   from: Point,
   to: Point,
-  r: number,
   s: Surface,
-  paper?: Particle,
+  paper: Parameters<typeof paperSupport>[0],
 ) {
   const a = local(from, s.previous),
     b = local(to, s.frame),
@@ -157,10 +144,7 @@ export function firstContact(
     if (ny > -0.2) continue;
     const c = Math.cos(s.frame.angle),
       sn = Math.sin(s.frame.angle);
-    const radius =
-      (paper
-        ? paperSupport(paper, -(nx * c - ny * sn), -(nx * sn + ny * c))
-        : r) / scale;
+    const radius = paperSupport(paper, -(nx * c - ny * sn), -(nx * sn + ny * c)) / scale;
     const d0 = (a.x - x) * nx + (a.y - y) * ny,
       d1 = (b.x - x) * nx + (b.y - y) * ny;
     if (d0 < radius - 1e-5 || d1 >= d0 || d1 > radius) continue;
@@ -269,9 +253,7 @@ export class Confetti {
   released = -1;
   rearming = false;
   armed = true;
-  low = false;
   count = 160;
-  roundLow = false;
   emitted = 0;
   accumulator = 0;
   seed = 103;
@@ -283,7 +265,6 @@ export class Confetti {
   frameTimes: number[] = [];
   p50 = 0;
   p95 = 0;
-  slowSince = -1;
   lastStats = 0;
   metrics: Record<
     string,
@@ -310,7 +291,6 @@ export class Confetti {
       sessionP95IsLowerBound: percentile(0.95) === 500,
       windowP50Ms: this.p50,
       windowP95Ms: this.p95,
-      low: this.low,
       active: this.active,
       rounds: this.rounds,
       contacts: this.contacts,
@@ -638,8 +618,7 @@ export class Confetti {
     this.usedPatches.clear();
     this.patchLaunches.clear();
     this.crownLaunches = 0;
-    this.roundLow = this.low;
-    this.count = count ?? confettiCount(this.height > this.width,this.roundLow);
+    this.count = count ?? confettiCount(this.height > this.width);
     this.emitted = 0;
     this.armed = false;
     this.rearming = false;
@@ -725,8 +704,6 @@ export class Confetti {
       flip: this.random() * Math.PI * 2,
       spin: (i % 2 ? 1 : -1) * (1.2 + this.random() * 3.2),
       color: i % 4,
-      triangle: false,
-      star: true,
       backFace: false,
       hairFixed: false,
       settleFlip: undefined,
@@ -1026,9 +1003,8 @@ export class Confetti {
             const hit = firstContact(
               { x: p.px, y: p.py },
               p,
-              p.h * 0.5,
               contactSurface,
-              p.triangle === undefined ? undefined : p,
+              p,
             );
             if (
               hit &&
@@ -1197,10 +1173,6 @@ export class Confetti {
       this.p50 = sorted[Math.floor(sorted.length * 0.5)];
       this.p95 = sorted[Math.floor(sorted.length * 0.95)];
       this.lastStats = now;
-      if (this.p95 > 1000 / 30 + 0.1) {
-        if (this.slowSince < 0) this.slowSince = now;
-        if (now - this.slowSince >= 3000) this.low = true;
-      } else this.slowSince = -1;
     }
   }
   hint(now: number) {

@@ -14,8 +14,8 @@ for(const mirror of [false,true]){
    const h=read(negative);
    assert.equal(h.heart,false,'both tips must extend past contact');
    assert.equal(h.heartPossible,false,'occlusion grace cannot bypass exposed-tip requirement');
-   const stopped=new Interaction();stopped.acceptHands([good],0);stopped.acceptHands([good],134);
-   for(let t=201;t<2000;t+=67)stopped.acceptHands([h],t);
+   const stopped=new Interaction();stopped.acceptHands([good],0);stopped.acceptHands([good],134);stopped.step(0,134);
+   for(let t=201;t<2000;t+=67){stopped.acceptHands([h],t);stopped.step(0,t);}
    assert.equal(stopped.emittedHearts,1,'short tips stop an already running stream');
  }
  for(const scale of [.7,1,1.2])for(const angle of [-.5,0,.5]){
@@ -27,17 +27,17 @@ for(const mirror of [false,true]){
  const e=new Interaction();
  for(let t=0;t<2000;t+=67)e.acceptHands([bad],t);
  assert.equal(e.emittedHearts,0,'relaxed pose never starts emitter');
- e.reset('hearts');e.acceptHands([good],0);
+ e.reset();e.acceptHands([good],0);
  const uncertain={...good,heart:false,heartPossible:true};
  for(let t=67;t<1500;t+=67)e.acceptHands([uncertain],t);
  assert.equal(e.emittedHearts,0,'one strong frame cannot bootstrap emission via tolerance');
- e.reset('hearts');e.acceptHands([good],0);e.acceptHands([good],134);
+ e.reset();e.acceptHands([good],0);e.acceptHands([good],134);e.step(0,134);
  assert.equal(e.emittedHearts,1);
- e.acceptHands([uncertain],201);assert.equal(e.memories.get('left').heartConfirmed,true);
+ e.acceptHands([uncertain],201);assert.equal(e.memories.get('left').heartConfirmed,false);
  for(let t=268;t<1600;t+=67)e.acceptHands([uncertain],t);
  assert.equal(e.memories.get('left').heartConfirmed,false);
  assert.equal(e.emittedHearts,1,'uncertainty cannot renew confirmed state indefinitely');
- e.acceptHands([good],1700);e.acceptHands([good],1834);
+ e.acceptHands([good],1700);e.acceptHands([good],1834);e.step(0,1834);
  assert.equal(e.emittedHearts,2,'clear crossing can rearm normally');
 }
 console.log('PASS: mirrored distal crossing, relaxed negative, strict entry, bounded occlusion, reentry');

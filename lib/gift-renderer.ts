@@ -19,18 +19,18 @@ export class GiftRenderer {
   constructor(video:HTMLVideoElement){
     this.videoTexture=new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;
     this.confetti=new ConfettiRenderer(this.renderer);
-    this.hearts=new HeartRenderer('v5',true,true,true,this.renderer);
+    this.hearts=new HeartRenderer(true,this.renderer);
     this.bubbles=new BubbleRenderer(this.renderer,this.videoTexture);
     this.renderer.autoClear=false;this.renderer.setClearColor(0,0);
   }
   async load(){
     for(const [key,view] of [['hearts',this.hearts],['bubble',this.bubbles]] as const){
       if(this.disposed)return;
-      try{await view.load();if(!this.disposed)this.ready[key]=true;}catch{this.errors[key]='素材加载失败';}
+      try{await view.load();if(!this.disposed)this.ready[key]=true;}catch{if(!this.disposed){view.dispose();this.errors[key]='素材加载失败';}}
     }
   }
   draw(c:Confetti,i:Interaction,video:HTMLVideoElement){
-    const r=this.renderer,dpr=c.low?1:Math.min(devicePixelRatio,1.5);
+    const r=this.renderer,dpr=Math.min(devicePixelRatio,1.5);
     if(r.getPixelRatio()!==dpr)r.setPixelRatio(dpr);
     if(r.domElement.width!==Math.floor(c.width*dpr)||r.domElement.height!==Math.floor(c.height*dpr))r.setSize(c.width,c.height);
     r.setRenderTarget(null);r.clear();

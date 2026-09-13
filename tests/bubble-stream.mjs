@@ -15,7 +15,7 @@ for(const mirror of [false,true]){
  }
  for(const pose of negatives){
    const bad=read(pose);assert.equal(bad.gun,false,'bent firing fingers or unclosed supporting finger rejected');
-   const engine=new Interaction();engine.reset('bubble');
+   const engine=new Interaction();engine.reset();
    for(let i=0;i<60;i++){const t=i*1000/60;if(i%4===0)engine.acceptHands([gun],t);engine.step(1/60,t);}
    const before=engine.emittedBubbles;engine.acceptHands([bad],1000);
    for(let i=0;i<60;i++){const t=1000+i*1000/60;if(i%4===0)engine.acceptHands([bad],t);engine.step(1/60,t);}
@@ -32,7 +32,7 @@ for(const mirror of [false,true]){
 
  const index=points.map(p=>[...p]);index[3]=[.43,.66];index[4]=[.47,.66];
  assert.equal(read(index).gun,false,'index alone cannot emit');
- const e=new Interaction();e.reset('bubble');
+ const e=new Interaction();e.reset();
  for(let i=0;i<240;i++){
   const t=i*1000/60;if(i%4===0)e.acceptHands([gun],t);e.step(1/60,t);
  }
@@ -41,14 +41,31 @@ for(const mirror of [false,true]){
  const moving=e.bubbles.find(b=>b.active&&b.age>.5&&b.age<.8);assert.ok(moving.vy<0);
  const count=e.emittedBubbles;e.acceptHands([read(index)],4000);e.step(1/60,4017);
  assert.equal(e.emittedBubbles,count,'thumb retracted stops emission immediately');
- const stale=new Interaction();stale.reset('bubble');stale.acceptHands([gun],0);stale.step(1/60,1000);assert.equal(stale.emittedBubbles,0);
- const noPoke=new Interaction();noPoke.reset('bubble');Object.assign(noPoke.bubbles[0],{active:true,x:200,y:150,r:30,age:1,pop:-1});
+ const stale=new Interaction();stale.reset();stale.acceptHands([gun],0);stale.step(1/60,1000);assert.equal(stale.emittedBubbles,0);
+ const noPoke=new Interaction();noPoke.reset();Object.assign(noPoke.bubbles[0],{active:true,x:200,y:150,r:30,age:1,pop:-1});
  const h=read(index);noPoke.acceptHands([{...h,tip:{x:150,y:150}}],0);noPoke.acceptHands([{...h,tip:{x:210,y:150}}],67);assert.equal(noPoke.bubbles[0].pop,-1);
 }
 assert.equal(bubbleRadius(30,0),6.6);assert.equal(bubbleRadius(30,.45),30);
 assert.deepEqual(orderBubbles([{active:true,birthOrder:9},{active:true,birthOrder:2},{active:true,birthOrder:4}],[]),[1,2,0]);
 const h={id:'left',tip:{x:300,y:250},wrist:{x:300,y:350},anchor:{x:300,y:300},span:80,heart:false,pointing:false,palm:false,reach:0,gun:true,gunDirection:{x:1,y:0}};
-const full=new Interaction();full.reset('bubble');
-for(let i=0;i<7200;i++){const t=i*1000/60;if(i%4===0)full.acceptHands([h,{...h,id:'right'}],t);full.step(1/60,t);assert.ok(full.bubbles.filter(b=>b.active).length<=96);}
-assert.ok(full.emittedBubbles>1700,'two hands sustain emission for two simulated minutes');
+const full=new Interaction();full.reset();
+for(let i=0;i<7200;i++){const t=i*1000/60;if(i%4===0)full.acceptHands([h,{...h,id:'right'}],t);full.step(1/60,t);assert.ok(full.bubbles.filter(b=>b.active).length<=32);}
+assert.ok(full.emittedBubbles>700&&full.dropped.bubble>0&&full.emittedBubbles+full.dropped.bubble>=890&&full.emittedBubbles+full.dropped.bubble<=900,'32-active cap skips shared opportunities without a backlog');
 console.log('PASS: gun vs index, dense stream, stale/stop, no poke, growth, stable overlap ordering, 2-minute bounded simulation');
+// The active cap includes ruptures; a tighter confetti cap must not evict them.
+for(const [width,height] of [[1280,720],[720,1280]]){
+ const e=new Interaction();e.width=width;e.height=height;
+ for(const t of [0,100,200,300])e.acceptHands([h],t);
+ const slots=e.bubbles.slice(0,32);
+ for(let index=0;index<slots.length;index++)Object.assign(slots[index],{active:true,x:width/2,y:height/2,r:20,targetR:20,age:1,pop:-1,vx:0,vy:0,birthOrder:index});
+ e.popBubble(slots[0]);e.step(.01,300);
+ assert.equal(e.emittedBubbles,0,'rupturing slot still occupies capacity');
+ e.autoConfetti=true;e.acceptHands([h],400);e.step(.01,400);
+ assert.equal(slots.filter(b=>b.active).length,32,'tightening cap does not remove existing bubbles');
+ for(const t of [500,600,700])e.acceptHands([h],t);
+ e.step(.04,750,.35);assert.equal(slots[0].active,false);
+ e.autoConfetti=false;for(const t of [800,900,1000])e.acceptHands([h],t);e.step(.01,1000);
+ assert.equal(e.emittedBubbles,1);assert.equal(e.bubbles[0],slots[0]);assert.equal(slots[0].pop,-1,'reused slot clears rupture');
+ assert.equal(e.bubbles.filter(b=>b.active).length,32);
+ e.reset();assert.equal(e.bubbles.some(b=>b.active),false);
+}

@@ -107,7 +107,7 @@ export class ConfettiRenderer {
     this.renderer.setClearColor(0, 0);
   }
   draw(c: Confetti) {
-    const dpr = c.low ? 1 : Math.min(devicePixelRatio, 1.5);
+    const dpr = Math.min(devicePixelRatio, 1.5);
     if (this.renderer.getPixelRatio() !== dpr) this.renderer.setPixelRatio(dpr);
     if (
       this.renderer.domElement.width !== Math.floor(c.width * dpr) ||
@@ -210,7 +210,7 @@ export class ConfettiRenderer {
     ctx.fillRect(10, 65, Math.min(245, c.width - 20), 95);
     ctx.fillStyle = '#fff';
     ctx.fillText(
-      `P50 ${c.p50.toFixed(1)} ms / P95 ${c.p95.toFixed(1)} ms · ${c.active} 颗 / 接触 ${c.contacts} / 轮次 ${c.rounds} · ${c.low ? '低档' : '标准'}`,
+      `P50 ${c.p50.toFixed(1)} ms / P95 ${c.p95.toFixed(1)} ms · ${c.active} 颗 / 接触 ${c.contacts} / 轮次 ${c.rounds} · 固定预算`,
       16,
       84,
     );

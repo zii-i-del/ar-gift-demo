@@ -34,7 +34,7 @@ export class HeartRenderer {
   private assetTextures=new Set<THREE.Texture>();
   private videoTexture?: THREE.VideoTexture;
   private videoPlane = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({color:0xf2eeee}));
-  constructor(private variant:'v3'|'v4'|'v5'|'orange-current'|'orange-v9'|'orange-v10'|'orange-v11'|'orange-v12'|'orange-v13'|'orange-v14'='v5', private mixedPalette=false, private polished=false,private lightweight=false, private shared?:THREE.WebGLRenderer) {
+  constructor(private lightweight=false, private shared?:THREE.WebGLRenderer) {
     this.renderer = shared ?? new THREE.WebGLRenderer({alpha:true,antialias:true});
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -42,14 +42,11 @@ export class HeartRenderer {
     // One broad asymmetric softbox, rather than a room of sharp rectangles.
     const studio=new THREE.Scene();studio.background=new THREE.Color(.48,.39,.42);
     const softbox=new THREE.Mesh(new THREE.CircleGeometry(1,64),new THREE.MeshBasicMaterial({color:new THREE.Color(4,4,4),side:THREE.DoubleSide}));
-    softbox.position.set(...(variant==='v4'?[-4,4,2.5]:[-3,4,5]) as [number,number,number]);softbox.scale.set(variant==='v4'?2.8:2,3,1);softbox.lookAt(0,0,0);studio.add(softbox);
-    // Geometry trials keep the established lighting and color pipeline fixed.
-    const fill=variant==='v4'?new THREE.Mesh(new THREE.CircleGeometry(1,48),new THREE.MeshBasicMaterial({color:new THREE.Color(1.4,1.25,1.3),side:THREE.DoubleSide})):null;
-    if(fill){fill.position.set(4,2,.5);fill.scale.set(3.4,3.4,1);fill.lookAt(0,0,0);studio.add(fill);}
+    softbox.position.set(-3,4,5);softbox.scale.set(2,3,1);softbox.lookAt(0,0,0);studio.add(softbox);
     const pmrem=new THREE.PMREMGenerator(this.renderer);
-    this.environment=pmrem.fromScene(studio,variant==='v4'?.065:.04); this.scene.environment=this.environment.texture;
+    this.environment=pmrem.fromScene(studio,.04); this.scene.environment=this.environment.texture;
     this.scene.environmentIntensity=.8;
-    softbox.geometry.dispose();softbox.material.dispose();fill?.geometry.dispose();fill?.material.dispose();pmrem.dispose();
+    softbox.geometry.dispose();softbox.material.dispose();pmrem.dispose();
     this.camera.position.z=1000;
     this.videoPlane.position.z=-200; this.scene.add(this.videoPlane);
     this.videoPlane.material.toneMapped=false;
@@ -67,51 +64,46 @@ export class HeartRenderer {
         gl_FragColor=vec4(tint,a); #include <colorspace_fragment> }`.replace('#include <colorspace_fragment>','\n#include <colorspace_fragment>\n')});
     this.motes=new THREE.InstancedMesh(moteGeometry,moteMaterial,HEART_CAPACITY*8);
     this.motes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.moteAlpha.setUsage(THREE.DynamicDrawUsage);
-    for(let i=0;i<HEART_CAPACITY*8;i++)this.motes.setColorAt(i,new THREE.Color(0xffb6cd));
+    const initialMoteColor=new THREE.Color(0xffb6cd);
+    for(let i=0;i<HEART_CAPACITY*8;i++)this.motes.setColorAt(i,initialMoteColor);
     this.motes.count=0;this.motes.frustumCulled=false;this.motes.renderOrder=2;this.scene.add(this.motes);
   }
   async load() {
-    const urls={v3:'/assets/heart-rose-v3.glb',v4:'/assets/heart-refined-v4.glb',v5:'/assets/heart-fresh-pink-v16.glb','orange-current':'/assets/heart-peach-crystal-v3.glb','orange-v9':'/assets/heart-orange-matched-v9.glb','orange-v10':'/assets/heart-orange-v3-matched-v10.glb'};
-    const candidate=this.polished&&(this.variant==='v5'||this.variant==='orange-v14');
-    const gltf=await new GLTFLoader().loadAsync(candidate?`/assets/heart-crystal-v21-${this.variant==='v5'?'pink':'yellow'}.glb`:this.variant==='orange-v14'?'/assets/heart-honey-gold-v14.glb':this.variant==='orange-v13'?'/assets/heart-peach-fusion-v13.glb':this.variant==='orange-v12'?'/assets/heart-peach-volume-v12.glb':this.variant==='orange-v11'?'/assets/heart-orange-volume-v11.glb':urls[this.variant]);
+    const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>(),textures=new Set<THREE.Texture>();
+    const retain=(scene:THREE.Object3D)=>scene.traverse(o=>{
+      if(o instanceof THREE.Mesh){
+        geometries.add(o.geometry);
+        for(const m of Array.isArray(o.material)?o.material:[o.material]){
+          materials.add(m);
+          for(const value of Object.values(m))if(value instanceof THREE.Texture)textures.add(value);
+        }
+      }
+    });
+    try {
+    const gltf=await new GLTFLoader().loadAsync('/assets/heart-crystal-v21-pink.glb');
+    retain(gltf.scene);
+    if(this.disposed)return;
     const clip=gltf.animations.find(a=>a.name==='Heart_Grow') || gltf.animations[0];
     if(!clip) throw new Error('Heart_Grow animation missing');
-    if(this.disposed) { gltf.scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}}); return; }
     this.modelRadius=animatedHeartRadius(gltf.scene,clip);
     const inspect=new THREE.AnimationMixer(gltf.scene);inspect.clipAction(clip).play();inspect.setTime(.82);gltf.scene.updateMatrixWorld(true);
     const body=gltf.scene.getObjectByName('Heart_Glass');
     if(body)new THREE.Box3().setFromObject(body).getCenter(this.bodyCenter);
     inspect.stopAllAction();inspect.uncacheRoot(gltf.scene);
-    let peachSource:THREE.MeshPhysicalMaterial|undefined;
-    if(this.mixedPalette){
-      try{
-        const peach=await new GLTFLoader().loadAsync(this.polished?'/assets/heart-crystal-v21-yellow.glb':'/assets/heart-honey-gold-v14.glb');
-        peach.scene.traverse(o=>{if(o instanceof THREE.Mesh){
-          if(o.name==='Heart_Glass')peachSource=o.material as THREE.MeshPhysicalMaterial;
-          else (o.material as THREE.Material).dispose();
-          o.geometry.dispose();
-        }});
-        if(peachSource?.map)this.assetTextures.add(peachSource.map);
-      }catch(error){console.warn('Peach accent unavailable; keeping pink hearts.',error);}
-    }
-    if(this.disposed){peachSource?.dispose();gltf.scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});this.assetTextures.forEach(t=>t.dispose());this.assetTextures.clear();return;}
+    const peach=await new GLTFLoader().loadAsync('/assets/heart-crystal-v21-yellow.glb');
+    retain(peach.scene);
+    if(this.disposed)return;
+    const peachBody=peach.scene.getObjectByName('Heart_Glass') as THREE.Mesh;
+    const peachSource=peachBody.material as THREE.MeshPhysicalMaterial;
     for(let i=0;i<HEART_CAPACITY;i++) {
       const root=new THREE.Group(); const model=gltf.scene.clone(true); const materials:THREE.MeshPhysicalMaterial[]=[];const peach:THREE.MeshPhysicalMaterial[]=[];const meshes:THREE.Mesh[]=[];
       model.traverse(o=>{if(o instanceof THREE.Mesh){
-        // Use the full-size silhouette with a rose glass material and a surface
-        // clearcoat. A separate enlarged, pale shell creates a white halo.
         const m=(o.material as THREE.MeshPhysicalMaterial).clone();
         this.restoreEstablishedMaterial(m);
-        m.transparent=false; m.depthWrite=true; m.side=THREE.FrontSide;
-        // Glass appearance comes from the palette + clearcoat, not live refraction.
-        m.transmission=0; m.thickness=0;
-        if(m.map)this.assetTextures.add(m.map);
-        if(m.emissiveMap)this.assetTextures.add(m.emissiveMap);
-        m.userData.baseOpacity=1;
         o.visible=o.name==='Heart_Glass';
         o.material=m; o.renderOrder=1; materials.push(m);meshes.push(o);
-        const accent=(peachSource ?? m).clone();accent.transparent=false;accent.depthWrite=true;accent.side=THREE.FrontSide;accent.transmission=0;accent.thickness=0;accent.userData.baseOpacity=1;peach.push(accent);
-        if(peachSource)this.restoreEstablishedMaterial(accent);
+        const accent=peachSource.clone();peach.push(accent);
+        this.restoreEstablishedMaterial(accent);
       }});
       const axis=new THREE.Group(),unrotate=new THREE.Group();axis.position.copy(this.bodyCenter);model.position.sub(this.bodyCenter);
       unrotate.add(model);axis.add(unrotate);root.add(axis); root.visible=false; this.scene.add(root);
@@ -119,13 +111,25 @@ export class HeartRenderer {
       action.setLoop(THREE.LoopOnce,1); action.clampWhenFinished=true; action.play();
       this.slots.push({root,axis,unrotate,mixer,materials,peach,meshes});
     }
-    peachSource?.dispose();
-    gltf.scene.traverse(o=>{if(o instanceof THREE.Mesh)(o.material as THREE.Material).dispose();});
+
     this.ready=true;
+    } finally {
+      // Clones share geometry/textures, but own their cloned materials.
+      const used=new Set<THREE.BufferGeometry>();
+      for(const slot of this.slots)for(const mesh of slot.meshes)used.add(mesh.geometry);
+      for(const geometry of geometries)if(!used.has(geometry))geometry.dispose();
+      for(const material of materials)material.dispose();
+      for(const texture of textures){if(this.ready)this.assetTextures.add(texture);else texture.dispose();}
+    }
   }
   private restoreEstablishedMaterial(material:THREE.MeshPhysicalMaterial){
-    if(!this.polished)return;
-    // Geometry trials keep the v16/v14 palette and material parameters.
+    // Shared finish; color and textures remain those of each source material.
+    material.transparent=false;
+    material.depthWrite=true;
+    material.side=THREE.FrontSide;
+    material.transmission=0;
+    material.thickness=0;
+    material.userData.baseOpacity=1;
     material.roughness=.13;
     material.clearcoat=.65;
     material.clearcoatRoughness=.13;
@@ -181,7 +185,7 @@ export class HeartRenderer {
       slot.axis.scale.set(1-squeeze,1+squeeze*.65,1+squeeze*.25);
       // Alternating warm accent. Stable for the entire lifetime,
       // independent of recycled slot, hand owner, frame rate, or animation age.
-      const accent=this.mixedPalette && h.colorOrder!==undefined && h.colorOrder%2===1;
+      const accent=h.colorOrder!==undefined && h.colorOrder%2===1;
       const activeMaterials=accent?slot.peach:slot.materials;
       slot.meshes.forEach((mesh,j)=>{mesh.material=activeMaterials[j];});
       activeMaterials.forEach(m=>{
@@ -194,7 +198,7 @@ export class HeartRenderer {
           height/2-h.y+Math.cos(angle)*8+this.centerOffset.y-mote.y,this.ranks[i]*depth.spacing+this.modelRadius*baseScale);
         this.motePose.scale.set(mote.radius,mote.radius,1);this.motePose.updateMatrix();
         this.motes.setMatrixAt(moteCount,this.motePose.matrix);
-        this.motes.setColorAt(moteCount,new THREE.Color(accent||this.variant.startsWith('orange')?0xffdf8c:0xffaac5));
+        this.motes.setColorAt(moteCount,accent?this.yellowMote:this.pinkMote);
         this.moteAlpha.setX(moteCount,mote.alpha);moteCount++;
       }
     }
@@ -206,7 +210,7 @@ export class HeartRenderer {
         this.motePose.position.set(center.x-width/2+mote.x,height/2-center.y-mote.y,0);
         this.motePose.scale.set(mote.radius,mote.radius,1);this.motePose.updateMatrix();
         this.motes.setMatrixAt(moteCount,this.motePose.matrix);
-        this.motes.setColorAt(moteCount,new THREE.Color((tail.colorOrder??0)%2?0xffdf8c:0xffaac5));
+        this.motes.setColorAt(moteCount,(tail.colorOrder??0)%2?this.yellowMote:this.pinkMote);
         this.moteAlpha.setX(moteCount,mote.alpha);moteCount++;
       }
     }
@@ -226,6 +230,7 @@ export class HeartRenderer {
     this.renderer.render(this.scene,this.camera);
   }
   dispose(){
+    if(this.disposed)return;
     this.disposed=true;this.ready=false;
     this.motes.geometry.dispose();(this.motes.material as THREE.Material).dispose();
     const geometries=new Set<THREE.BufferGeometry>();

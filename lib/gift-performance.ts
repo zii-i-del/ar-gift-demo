@@ -1,16 +1,3 @@
-export class GiftPerformance {
-  low=false;protected=false;protections=0;p50=0;p95=0;badSince=-1;goodSince=-1;lastStats=0;
-  frames:number[]=[];
-  update(dt:number,now:number,fresh:boolean){
-    this.frames.push(dt);if(this.frames.length>180)this.frames.shift();
-    if(now-this.lastStats<500||this.frames.length<30)return;this.lastStats=now;
-    const sorted=[...this.frames].sort((a,b)=>a-b);this.p50=sorted[Math.floor(sorted.length*.5)];this.p95=sorted[Math.floor(sorted.length*.95)];
-    const bad=this.p95>33.3||!fresh;
-    if(bad){this.goodSince=-1;if(this.badSince<0)this.badSince=now;
-      if(now-this.badSince>=3000){if(!this.low){this.low=true;this.badSince=now;}else if(!this.protected){this.protected=true;this.protections++;}}}
-    else {this.badSince=-1;if(this.goodSince<0)this.goodSince=now;if(this.protected&&now-this.goodSince>=3000)this.protected=false;}
-  }
-}
 /** Nonblocking GPU timer. CPU timings must never be labelled GPU timings. */
 export class GiftGpuTimer {
   private gl:WebGL2RenderingContext;private ext:any;private pending:WebGLQuery[]=[];private current:WebGLQuery|null=null;

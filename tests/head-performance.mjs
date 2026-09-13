@@ -3,7 +3,7 @@ import { performance } from 'node:perf_hooks';
 // 120 seconds of simulated 60 Hz time, NOT camera/render FPS or wall-clock duration.
 function run(enabled) {
   const e = new Interaction();
-  e.reset('bubble');
+  e.reset();
   e.width = 1280;
   e.height = 720;
   const costs = [];

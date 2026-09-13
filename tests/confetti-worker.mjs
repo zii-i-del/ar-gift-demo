@@ -55,158 +55,82 @@ const context = {
     },
     now: () => now,
   },
-  OffscreenCanvas: class {
-    getContext() {
-      return { clearRect() {}, drawImage() {} };
-    }
-  },
   importScripts() {},
   ConfettiSurfaces: {
-    hair: () => [],
+    hair: () => ({lines:[],patches:[]}),
     shoulders: () => ({ left: [], right: [] }),
   },
   self: { postMessage: (m) => messages.push(m) },
 };
 vm.createContext(context);
-vm.runInContext(fs.readFileSync('public/tracking-worker.js', 'utf8'), context);
-await context.self.onmessage({
-  data: { type: 'start', scene: 'confetti', timeOrigin: 90000 },
-});
-assert.ok(messages.some((m) => m.type === 'ready'));
-await context.self.onmessage({
-  data: { type: 'configure', phase: 'playing', low: false },
-});
-let closed = 0;
-for (let i = 0; i < 20; i++) {
-  now += 100;
-  const before = calls.filter((t) => t !== 'pose-close').length;
-  await context.self.onmessage({
-    data: {
-      type: 'frame',
-      timestamp: now + 10000,
-      image: {
-        width: 640,
-        height: 480,
-        close() {
-          closed++;
-        },
-      },
-    },
-  });
-  assert.ok(
-    calls.filter((t) => t !== 'pose-close').length - before <= 1,
-    'one inference per frame',
-  );
+vm.runInContext(fs.readFileSync('public/gift-scheduler.js','utf8'),context);
+context.GiftScheduler=context.self.GiftScheduler;
+vm.runInContext(fs.readFileSync('public/tracking-worker.js','utf8'),context);
+const send=data=>context.self.onmessage({data:{sessionId:0,...data}});
+await send({type:'start',timeOrigin:90000});
+assert(messages.some(m=>m.type==='ready'));
+assert(!calls.includes('hair')&&!calls.includes('pose'),'segmentation is warmed separately');
+for(const task of ['hair','pose'])await send({type:'warmup',task});
+assert(messages.filter(m=>m.type==='model'&&m.ready).length===2);
+await send({type:'configure',phase:'playing'});
+let closed=0;
+const frame=(timestamp=now+10000)=>send({type:'frame',timestamp,image:{width:640,height:480,close(){closed++;}}});
+for(let n=0;n<200;n++){
+ now+=20;const before=calls.filter(t=>t!=='pose-close').length;
+ await frame();assert(calls.filter(t=>t!=='pose-close').length-before<=1);
 }
-assert.ok(calls.includes('hair'));
-assert.ok(calls.includes('pose'));
-assert.ok(!calls.includes('hands'), 'hands off while playing');
-assert.equal(closed, 20);
-assert.equal(messages.filter((m) => m.type === 'frame-done').length, 20);
-const before = calls.length;
-await context.self.onmessage({
-  data: {
-    type: 'frame',
-    timestamp: now + 9000,
-    image: {
-      close() {
-        closed++;
-      },
-    },
-  },
-});
-assert.equal(calls.length, before, 'stale frame dropped across time origins');
-failHair = true;
-for (let i = 0; i < 10; i++) {
-  now += 200;
-  await context.self.onmessage({
-    data: {
-      type: 'frame',
-      timestamp: now + 10000,
-      image: {
-        width: 640,
-        height: 480,
-        close() {
-          closed++;
-        },
-      },
-    },
-  });
+for(const task of ['face','hands','hair','pose'])assert(calls.includes(task),task+' runs during playback');
+assert.equal(calls.filter(t=>t==='pose').length,calls.filter(t=>t==='pose-close').length);
+assert.equal(closed,200);
+const before=calls.length;await frame(now+9000);assert.equal(calls.length,before,'stale source frame does not infer');
+let oldClosed=0;await send({type:'frame',sessionId:99,timestamp:now+10000,image:{close(){oldClosed++;}}});
+assert.equal(oldClosed,1);assert.equal(calls.length,before,'old session does not infer');
+failHair=true;
+for(let n=0;n<100;n++){now+=20;await frame();}
+assert(messages.some(m=>m.task==='hair'&&m.error&&!m.valid));
+assert.equal(vm.runInContext('frameRunning',context),false);
+failHair=false;
+await send({type:'configure',phase:'idle'});
+const segmented=calls.filter(t=>t==='hair'||t==='pose').length;
+let captures=0;
+for(let n=0;n<600;n++){
+ now+=1000/60;
+ if(now+10000<messages.findLast(m=>m.type==='capture-schedule').nextCaptureAt)continue;
+ await frame();captures++;
 }
-assert.ok(
-  messages.some((m) => m.task === 'hair' && m.error && m.valid === false),
-);
-assert.equal(messages.filter((m) => m.type === 'frame-done').length, 31);
-console.log(
-  'PASS worker: time-origin correction, one task/frame, stage scheduling, pose mask cleanup, error completion, stale frame dropping',
-);
-// Simulate the main thread obeying capture admission; no images for idle ticks.
-failHair = false;
-let captures = 0;
-for (let i = 0; i < 600; i++) {
-  now += 1000 / 60;
-  const next = messages.findLast(
-    (m) => m.type === 'capture-schedule',
-  )?.nextCaptureAt;
-  if (now + 10000 < next) continue;
-  const n = calls.filter((t) => t !== 'pose-close').length;
-  await context.self.onmessage({
-    data: {
-      type: 'frame',
-      timestamp: now + 10000,
-      image: { width: 640, height: 480, close() {} },
-    },
-  });
-  assert.equal(
-    calls.filter((t) => t !== 'pose-close').length,
-    n + 1,
-    'admitted capture executes one task',
-  );
-  captures++;
+assert.equal(calls.filter(t=>t==='hair'||t==='pose').length,segmented,'idle does not segment');
+assert(captures>0&&captures<350,'capture admission remains bounded');
+for(const phase of ['idle','candidate','preparing','playing','finishing']){
+ await send({type:'configure',phase});assert.equal(context.GiftScheduler.rates(phase).hands,12);
 }
-assert.ok(
-  captures < 350,
-  `capture count ${captures} should be below 60 Hz for 10 s`,
-);
-await context.self.onmessage({
-  data: { type: 'configure', phase: 'playing', low: true },
-});
-assert.equal(
-  vm.runInContext('rates().pose', context),
-  5,
-  'low shoulder interval leaves freshness headroom',
-);
-await context.self.onmessage({
-  data: { type: 'configure', phase: 'idle', low: false },
-});
-assert.ok(
-  vm.runInContext('rates().hands', context) > 0,
-  'hands resume after playing',
-);
-assert.equal(
-  vm.runInContext('rates().hair', context),
-  2,
-  'idle segmentation stays low',
-);
-console.log(
-  `PASS capture admission: ${captures}/600 ticks need images; low-mode shoulder headroom, idle rates`,
-);
-await context.self.onmessage({
-  data: { type: 'configure', phase: 'finishing', low: false },
-});
-assert.equal(
-  vm.runInContext('rates().hands', context),
-  6,
-  'hands return only at low rate in ending phase',
-);
-assert.equal(vm.runInContext('rates().hair', context), 5);
-assert.equal(vm.runInContext('rates().pose', context), 4);
-await context.self.onmessage({
-  data: { type: 'configure', phase: 'playing', low: false },
-});
-assert.equal(
-  vm.runInContext('rates().hands', context),
-  0,
-  'normal playback still skips hands',
-);
-console.log('PASS bounded end-phase hand inference rates');
+console.log('PASS current Worker: one task/frame, both hands during playback, idle segmentation off, cleanup, stale/old sessions and capture budget');
+
+// Deterministic wall-time accounting through the real frame lifecycle.
+now=Math.ceil(now);
+vm.runInContext('phase="idle"; mainOrigin=100000;',context);
+let inferenceMs=40, failInference=true;
+vm.runInContext('handLandmarker.detectForVideo = () => testDetection()',context);
+context.testDetection=()=>{now+=inferenceMs;if(failInference)throw Error('timed failure');return {landmarks:[],worldLandmarks:[],handedness:[]};};
+const sendFrame=async()=>{await context.self.onmessage({data:{type:'frame',sessionId:0,timestamp:now,image:{width:640,height:480,close(){closed++;}}}});};
+const prepare=()=>vm.runInContext(`tokens=100;tokenTime=${now};lastRun.hands=0;lastRun.face=${now};cost.hands=20;`,context);
+prepare();const beforeClose=closed;await sendFrame();
+assert.equal(messages.findLast(m=>m.type==='confetti-result').duration,40);
+assert.equal(messages.findLast(m=>m.type==='confetti-result').error,'timed failure');
+assert.equal(vm.runInContext('cost.hands',context),24,'failed inference updates the estimate');
+assert.equal(vm.runInContext('tokens',context),88,'40ms spent once, 28ms replenished during execution');
+assert.equal(closed,beforeClose+1);assert.equal(vm.runInContext('frameRunning',context),false);
+// No budget: no execution, no error packet, no imaginary work charged.
+vm.runInContext(`tokens=0;tokenTime=${now};lastRun.hands=0;`,context);
+const beforeMessages=messages.filter(m=>m.type==='confetti-result').length;
+await sendFrame();assert.equal(messages.filter(m=>m.type==='confetti-result').length,beforeMessages);
+assert.equal(vm.runInContext('tokens',context),0);
+// Refill and a successful empty detection uses the identical accounting path.
+now+=200;failInference=false;prepare();await sendFrame();
+const recovered=messages.findLast(m=>m.type==='confetti-result');
+assert.equal(recovered.error,undefined);assert.equal(recovered.valid,false);assert.equal(recovered.duration,40);
+assert.equal(vm.runInContext('cost.hands',context),24);assert.equal(vm.runInContext('tokens',context),88);
+// An unexpectedly expensive failure retains debt rather than clearing it.
+now+=200;inferenceMs=400;failInference=true;prepare();await sendFrame();
+assert.equal(vm.runInContext('tokens',context),-20);
+assert.equal(vm.runInContext('frameRunning',context),false);
+console.log('PASS failure/success costs, no-budget skip, recovery, overrun debt and frame release');

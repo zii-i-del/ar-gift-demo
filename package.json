@@ -9,6 +9,9 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
+    "test": "node tests/run.mjs",
+    "test:baseline": "node --experimental-strip-types tests/effect-baseline.mjs",
+    "test:perf": "node --experimental-strip-types tests/confetti-performance.mjs && node --experimental-strip-types tests/head-performance.mjs",
     "lint": "oxlint",
     "format": "oxfmt"
   },

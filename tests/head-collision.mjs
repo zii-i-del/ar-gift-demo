@@ -80,7 +80,7 @@ assert.equal(tracked.vx, 0);
 assert.ok(readHead(raw, 800, 600, 800, 600, 1400, tracked).reset);
 assert.equal(readHead(null, 800, 600, 800, 600, 1400, tracked), null);
 const engine = new Interaction();
-engine.reset('bubble');
+engine.reset();
 engine.width = 800;
 engine.height = 600;
 const b = engine.bubbles[0];

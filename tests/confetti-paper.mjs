@@ -1,28 +1,21 @@
 import assert from 'node:assert/strict';
 import { Confetti, paperSupport } from '../lib/confetti.ts';
 const p = { w: 20, h: 10, angle: 0, flip: 0 };
-assert.equal(paperSupport(p, 0, 1), 5);
+const down = 5 * Math.cos(Math.PI / 5);
+const right = 10 * Math.cos(Math.PI / 10);
+assert.ok(Math.abs(paperSupport(p, 0, 1) - down) < 1e-6);
+assert.equal(paperSupport(p, 0, -1), 5, 'upward star tip');
+assert.ok(Math.abs(paperSupport(p, 1, 0) - right) < 1e-6);
 p.angle = Math.PI / 2;
-assert.ok(
-  Math.abs(paperSupport(p, 0, 1) - 10) < 1e-6,
-  'rotated width participates in collision',
-);
-p.angle = 0;
-p.flip = Math.PI / 2;
-assert.ok(
-  Math.abs(paperSupport(p, 0, 1) - 0.6) < 1e-6,
-  'edge-on paper matches render thickness',
-);
-p.flip = 0;
-p.triangle = true;
-assert.equal(paperSupport(p, 1, 0), 10);
-assert.equal(paperSupport(p, 0, -1), 5);
+assert.ok(Math.abs(paperSupport(p, 0, 1) - right) < 1e-6, 'rotated star width');
+p.angle = 0;p.flip = Math.PI / 2;
+assert.ok(Math.abs(paperSupport(p, 0, 1) - down * .12) < 1e-6, 'edge-on star outline');
 const c = new Confetti();
 c.modelReady = true;
 c.trigger(1000);
 for (let i = 0; i < 160; i++) c.spawn(i, 1000);
 assert.equal(
-  c.particles.filter((p) => p.state && p.star).length,
+  c.particles.filter((p) => p.state).length,
   160,
   'all particles are stars',
 );
@@ -34,7 +27,7 @@ for (const p of c.particles)
   }
 assert.equal(c.particles.length, 240, 'pool unchanged');
 console.log(
-  'PASS paper size, triangle mix, rotated and edge-on contact support',
+  'PASS paper size, five-point outline, rotated and edge-on contact support',
 );
 
 const free = new Confetti(),
@@ -69,7 +62,7 @@ assert.equal(
 );
 console.log('PASS no region-dependent paper shrinking');
 
-const rolling = { w: 40, h: 40, angle: 0, flip: Math.PI, star: true, state: 1 };
+const rolling = { w: 40, h: 40, angle: 0, flip: Math.PI, state: 1 };
 const airborneSupport = paperSupport(rolling, 0, 1);
 const landedSupport = paperSupport(
   { ...rolling, state: 2, backFace: true, flip: 0 },
@@ -96,7 +89,6 @@ const oblique = {
   h: 40,
   angle: 0,
   flip: Math.acos(0.4),
-  star: true,
   state: 2,
   tiltAxis: Math.PI / 2,
 };

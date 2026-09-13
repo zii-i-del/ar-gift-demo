@@ -32,7 +32,6 @@ for (const region of ['hair', 'left', 'right', 'frontHair']) {
     vx: 0,
     angle: 0.8,
     flip: 0,
-    triangle: false,
     front: false,
     interior: region === 'frontHair',
     patchId: 1,

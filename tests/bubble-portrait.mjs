@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {Interaction} from '../lib/interaction.ts';
 function make(w=360,h=640,face=false){
- const e=new Interaction();e.reset('bubble');e.width=w;e.height=h;
+ const e=new Interaction();e.reset();e.width=w;e.height=h;
  Object.assign(e.bubbles[0],{active:true,x:180,y:280,r:22,targetR:22,age:.5,pop:-1,vx:30,vy:-20,driftPhase:1,driftRate:1.4,driftSpeed:22,riseSpeed:105});
  if(face)e.acceptHead({x:180,y:250,rx:60,ry:80,angle:0,timestamp:0,vx:0,vy:0,omega:0,reset:false});
  return e;
