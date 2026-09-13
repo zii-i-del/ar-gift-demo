@@ -1,4 +1,3 @@
-'use client';
 import { useEffect, useRef, useState } from 'react';
 import { Confetti } from '../../lib/confetti';
 export default function ConfettiMaterialPreview() {

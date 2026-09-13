@@ -39,3 +39,5 @@ next-env.d.ts
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+/visual-test-dist/

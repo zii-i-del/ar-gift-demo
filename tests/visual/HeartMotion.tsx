@@ -1,4 +1,3 @@
-'use client';
 import {useEffect,useRef,useState} from 'react';
 import {Interaction} from '../../lib/interaction';
 export default function HeartMotionPreview(){
@@ -27,5 +26,5 @@ export default function HeartMotionPreview(){
  return <main style={{maxWidth:960,margin:'30px auto',padding:24}}><h1>爱心互动 · 轻量对比</h1><p>{status}</p>
  <div style={{display:'flex',gap:12,margin:'20px 0',flexWrap:'wrap'}}>{['擦碰','正碰','收尾'].map(m=><button key={m} onClick={()=>setMode(m)} style={{padding:'10px 20px',background:mode===m?'#edd7ff':'#eee',border:0,borderRadius:12}}>{m}</button>)}<button onClick={()=>{paused.current=!paused.current;setPlaying(!paused.current);}}>{playing?'暂停':'播放'}</button><button onClick={()=>setRevision(v=>v+1)}>重播</button></div>
  <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:16}}>{[left,right].map((ref,i)=><section key={i}><h2>{i?'轻量候选':'现有版本'}</h2><div style={{position:'relative',aspectRatio:'440 / 360',background:'#252934',borderRadius:20,overflow:'hidden'}}><div ref={ref} className="motion-canvas"/>{mode!=='收尾'&&<div style={{position:'absolute',left:'45.45%',top:'30.55%',width:'20.45%',height:'33.33%',border:'1px dashed #85909d',borderRadius:'50%',pointerEvents:'none'}}/>}</div></section>)}</div>
- <p>虚线为碰撞区域示意，不是新增识别。收尾每轮交替粉／黄，散片数量与方向随轮次变化。</p><p>仅对比页启用，主页仍保留原效果。</p><a href="/?scene=hearts">返回互动主页</a><style>{'.motion-canvas canvas{width:100%!important;height:auto!important;display:block}'}</style></main>;
+ <p>虚线为碰撞区域示意，不是新增识别。收尾每轮交替粉／黄，散片数量与方向随轮次变化。</p><p>仅对比页启用，主页仍保留原效果。</p><style>{'.motion-canvas canvas{width:100%!important;height:auto!important;display:block}'}</style></main>;
 }

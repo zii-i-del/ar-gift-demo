@@ -13,7 +13,9 @@
     "test:baseline": "node --experimental-strip-types tests/effect-baseline.mjs",
     "test:perf": "node --experimental-strip-types tests/confetti-performance.mjs && node --experimental-strip-types tests/head-performance.mjs",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "test:visual": "vite --config tests/visual/vite.config.ts",
+    "test:visual:build": "vite build --config tests/visual/vite.config.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
