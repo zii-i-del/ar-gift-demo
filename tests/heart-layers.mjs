@@ -11,7 +11,7 @@ for(const a of [-90,-30,0,30,90])for(const spread of [-12,0,12]){
 }
 const hearts=[{active:true,age:1,birthOrder:10},{active:true,age:.1,birthOrder:13},{active:true,age:.7,birthOrder:11}];const order=[];
 assert.deepEqual(orderHearts(hearts,order,1.9),[0,2,1]);hearts[0].birthOrder=14;hearts[0].age=0;assert.deepEqual(orderHearts(hearts,order,1.9),[2,1,0]);hearts[2].age=1.91;assert.deepEqual(orderHearts(hearts,order,1.9),[1,0]);
-for(const name of ['heart-rose-v3','heart-refined-v4','heart-vivid-v5']){
+for(const name of ['heart-crystal-v21-pink','heart-crystal-v21-yellow']){
  const b=fs.readFileSync(new URL('../public/assets/'+name+'.glb',import.meta.url));const len=b.readUInt32LE(12),g=JSON.parse(b.subarray(20,20+len)),bin=28+len;
  function floats(index){const a=g.accessors[index],v=g.bufferViews[a.bufferView],n={SCALAR:1,VEC3:3,VEC4:4}[a.type],values=[];for(let i=0;i<a.count;i++)for(let j=0;j<n;j++)values.push(b.readFloatLE(bin+(v.byteOffset||0)+(a.byteOffset||0)+i*(v.byteStride||n*4)+j*4));return values;}
  const nodes=g.nodes.map(n=>{let o=new THREE.Group();if(n.mesh!==undefined){const a=g.accessors[g.meshes[n.mesh].primitives[0].attributes.POSITION];const vertices=[];for(const x of [a.min[0],a.max[0]])for(const y of [a.min[1],a.max[1]])for(const z of [a.min[2],a.max[2]])vertices.push(x,y,z);const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));o=new THREE.Mesh(geo);}o.name=n.name;if(n.scale)o.scale.fromArray(n.scale);if(n.rotation)o.quaternion.fromArray(n.rotation);if(n.translation)o.position.fromArray(n.translation);return o;});

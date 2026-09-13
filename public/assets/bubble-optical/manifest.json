@@ -13,7 +13,7 @@
   "birthSeconds": 0.1,
   "membraneRetreatSeconds": 0.06,
   "ruptureSeconds": 0.32,
-  "mainPoolCapacity": 96,
+  "mainPoolCapacity": 32,
   "mainLifetimeSeconds": 5,
   "physicalAccuracy": "art-directed view-dependent approximation, not environment-correct optical simulation",
   "revision": "Curved cyan/pink and blue/lavender lobe transitions with softer blending; unchanged highlight and runtime."
