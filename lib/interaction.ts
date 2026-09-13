@@ -1009,9 +1009,9 @@ export class Interaction {
     }
   }
   get count() {
-    return (
-      this.hearts.filter((h) => h.active).length +
-      this.bubbles.filter((b) => b.active).length
-    );
+    let count = 0;
+    for (const heart of this.hearts) if (heart.active) count++;
+    for (const bubble of this.bubbles) if (bubble.active) count++;
+    return count;
   }
 }

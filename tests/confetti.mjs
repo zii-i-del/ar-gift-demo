@@ -91,7 +91,7 @@ for (let i = 0; i <= 420; i++) c2.step(1 / 60, 1000 + (i * 1000) / 60);
 assert.equal(c2.emitted, 160);
 assert.equal(c2.active, 0);
 assert.equal(c2.particles, pool);
-assert.equal(pool.length, 240);
+assert.equal(pool.length, 160);
 const c3 = new Confetti();
 c3.accept(
   {

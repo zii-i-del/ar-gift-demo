@@ -1,5 +1,5 @@
 import {mouthRegion} from './mouth-region.ts';
-import {confettiCount, confettiDiameter, CONFETTI_SETTLED_WIDTH} from './confetti-config.ts';
+import {CONFETTI_CAPACITY, confettiCount, confettiDiameter, CONFETTI_SETTLED_WIDTH} from './confetti-config.ts';
 import { STAR_POINTS } from './confetti-star.ts';
 import { hairMotion, type HairGrid } from './hair-motion.ts';
 import { coverPoint, cameraScale } from './coordinates.ts';
@@ -194,7 +194,7 @@ export class Confetti {
   height = 480;
   sourceW = 640;
   sourceH = 480;
-  particles: Particle[] = Array.from({ length: 240 }, (_, id) => ({
+  particles: Particle[] = Array.from({ length: CONFETTI_CAPACITY }, (_, id) => ({
     id,
     state: 0,
     x: 0,
@@ -253,7 +253,7 @@ export class Confetti {
   released = -1;
   rearming = false;
   armed = true;
-  count = 160;
+  count = CONFETTI_CAPACITY;
   emitted = 0;
   accumulator = 0;
   seed = 103;

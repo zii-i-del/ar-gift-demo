@@ -15,7 +15,6 @@ export class GiftRenderer {
   disposed=false;
   ready={confetti:true,hearts:false,bubble:false};
   errors:Record<string,string>={};
-  timings={confetti:0,hearts:0,bubble:0};
   constructor(video:HTMLVideoElement){
     this.videoTexture=new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;
     this.confetti=new ConfettiRenderer(this.renderer);
@@ -34,14 +33,12 @@ export class GiftRenderer {
     if(r.getPixelRatio()!==dpr)r.setPixelRatio(dpr);
     if(r.domElement.width!==Math.floor(c.width*dpr)||r.domElement.height!==Math.floor(c.height*dpr))r.setSize(c.width,c.height);
     r.setRenderTarget(null);r.clear();
-    let t=performance.now();r.toneMapping=THREE.NoToneMapping;
-    if(c.active)this.confetti.draw(c);this.timings.confetti=performance.now()-t;
-    r.clearDepth();t=performance.now();r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1;
+    r.toneMapping=THREE.NoToneMapping;
+    if(c.active)this.confetti.draw(c);
+    r.clearDepth();r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1;
     if(this.ready.hearts && (i.hearts.some(h=>h.active)||i.heartPetals?.groups.some(g=>g.active)))this.hearts.draw(i.hearts,c.width,c.height,undefined,undefined,undefined,undefined,i.heartTails,i.heartPetals);
-    this.timings.hearts=performance.now()-t;
-    r.clearDepth();t=performance.now();r.toneMapping=THREE.NoToneMapping;
+    r.clearDepth();r.toneMapping=THREE.NoToneMapping;
     if(this.ready.bubble)this.bubbles.draw(i.bubbles,c.width,c.height,video);
-    this.timings.bubble=performance.now()-t;
   }
   dispose(){if(this.disposed)return;this.disposed=true;this.confetti.dispose();this.hearts.dispose();this.bubbles.dispose();this.videoTexture.dispose();this.renderer.dispose();this.renderer.forceContextLoss();}
 }

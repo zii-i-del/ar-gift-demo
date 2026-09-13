@@ -5,7 +5,6 @@ import {Interaction,readHand,type Hand} from '../lib/interaction';
 import {readHead} from '../lib/head';
 import {matchHandTracks} from '../lib/hand-tracks';
 import {GiftCoordinator} from '../lib/gift-coordinator';
-import {GiftGpuTimer} from '../lib/gift-performance';
 import type {GiftRenderer} from '../lib/gift-renderer';
 
 type Orientation='landscape'|'portrait';
@@ -30,7 +29,7 @@ export default function Home(){
   if(!running)return;
   const v=video.current!,root=host.current!,id=++session.current,c=new Confetti(),i=new Interaction(true),g=new GiftCoordinator();
   c.externalGestures=true;i.autoReady={hearts:false,bubble:false};
-  let disposed=false,worker:Worker|null=null,renderer:GiftRenderer|null=null,gpu:GiftGpuTimer|null=null,frame=0,busy=false,next=Infinity,lastVideo=-1,lastFrame=0,lastUi=0,config='',workerReady=false,readyAt=0,handsAt=-Infinity,handSeq=0,minimumTimestamp=0,contextLosses=0,recoveries=0,recoveryTimer:ReturnType<typeof setTimeout>|undefined;
+  let disposed=false,worker:Worker|null=null,renderer:GiftRenderer|null=null,frame=0,busy=false,next=Infinity,lastVideo=-1,lastFrame=0,lastUi=0,config='',workerReady=false,readyAt=0,handsAt=-Infinity,handSeq=0,minimumTimestamp=0,recoveries=0,recoveryTimer:ReturnType<typeof setTimeout>|undefined;
   const warmups=['hair','pose'];
   let tracks:Array<{id:string;label:string;wrist:{x:number;y:number};seen:number}>=[];
   const metrics:Record<string,{timestamp:number;duration:number;valid:boolean;error?:string;count:number}>={};
@@ -61,8 +60,8 @@ export default function Home(){
       i.acceptHands(g.filter(hands,i.autoBlocked),p.timestamp);syncConfig(now);
     }
   };
-  const onLost=(e:Event)=>{e.preventDefault();if(disposed)return;contextLosses++;i.autoBlocked=true;reset();setError('画面恢复中…');clearTimeout(recoveryTimer);recoveryTimer=setTimeout(()=>{if(!disposed&&renderer?.renderer.getContext().isContextLost())void recoverRenderer();},1500);};
-  const recoverRenderer=async()=>{if(disposed)return;if(recoveries++>=1){setError('画面恢复失败，请重试识别');return;}clearTimeout(recoveryTimer);gpu?.dispose();gpu=null;const old=renderer;renderer=null;if(old){old.renderer.domElement.removeEventListener('webglcontextlost',onLost);old.dispose();old.renderer.domElement.remove();}await createRenderer();};
+  const onLost=(e:Event)=>{e.preventDefault();if(disposed)return;i.autoBlocked=true;reset();setError('画面恢复中…');clearTimeout(recoveryTimer);recoveryTimer=setTimeout(()=>{if(!disposed&&renderer?.renderer.getContext().isContextLost())void recoverRenderer();},1500);};
+  const recoverRenderer=async()=>{if(disposed)return;if(recoveries++>=1){setError('画面恢复失败，请重试识别');return;}clearTimeout(recoveryTimer);const old=renderer;renderer=null;if(old){old.renderer.domElement.removeEventListener('webglcontextlost',onLost);old.dispose();old.renderer.domElement.remove();}await createRenderer();};
   const createRenderer=async()=>{
     const {GiftRenderer}=await import('../lib/gift-renderer');if(disposed)return;
     const r=new GiftRenderer(v);renderer=r;
@@ -72,7 +71,6 @@ export default function Home(){
     r.renderer.domElement.addEventListener('webglcontextrestored',()=>{if(!disposed&&renderer===r)void recoverRenderer();});
     await r.load();
     if(disposed||renderer!==r||r.disposed)return;
-    gpu=new GiftGpuTimer(r.renderer.getContext() as WebGL2RenderingContext);
     i.autoReady={hearts:r.ready.hearts,bubble:r.ready.bubble};setReady({...r.ready});
     setError(Object.keys(r.errors).length?'部分礼物素材未准备好，其余礼物仍可使用':'');
     // Only the current renderer starts inference, once, after material warm-up.
@@ -90,7 +88,7 @@ export default function Home(){
     g.expire(now);const stale=now-handsAt>200;
     i.autoBlocked=g.blocked||stale||!renderer||renderer.disposed||renderer.renderer.getContext().isContextLost();i.autoConfetti=c.playing;
     c.update(dt,now);i.step(Math.min(dt,40)/1000,now,dt/1000);syncConfig(now);
-    if(renderer&&!renderer.disposed&&!renderer.renderer.getContext().isContextLost()){gpu?.begin();renderer.draw(c,i,v);gpu?.end();}
+    if(renderer&&!renderer.disposed&&!renderer.renderer.getContext().isContextLost()){renderer.draw(c,i,v);}
     if(worker&&workerReady&&!busy&&warmups.length&&now-readyAt>500){busy=true;worker.postMessage({type:'warmup',task:warmups.shift(),sessionId:id});}
     if(worker&&workerReady&&!busy&&now>=next&&v.readyState>=2&&v.currentTime!==lastVideo){busy=true;lastVideo=v.currentTime;const sampled=now;void createImageBitmap(v).then(image=>{if(disposed||document.hidden||sampled<minimumTimestamp){image.close();busy=false;return;}try{worker!.postMessage({type:'frame',sessionId:id,timestamp:sampled,image},[image]);}catch{image.close();busy=false;}}).catch(()=>{busy=false;});}
     if(now-lastUi>500){lastUi=now;
@@ -99,7 +97,7 @@ export default function Home(){
       if(debugRef.current){const canvas=debugCanvas.current;if(canvas){canvas.width=c.width;canvas.height=c.height;const ctx=canvas.getContext('2d');if(ctx)renderer?.confetti.debug(ctx,c,now);}}
     }
   };frame=requestAnimationFrame(tick);
-  return()=>{disposed=true;resetRef.current=()=>{};cancelAnimationFrame(frame);clearTimeout(recoveryTimer);resize.disconnect();document.removeEventListener('visibilitychange',visibility);worker?.terminate();gpu?.dispose();if(renderer){renderer.renderer.domElement.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.renderer.domElement.remove();}c.invalidate();i.reset();};
+  return()=>{disposed=true;resetRef.current=()=>{};cancelAnimationFrame(frame);clearTimeout(recoveryTimer);resize.disconnect();document.removeEventListener('visibilitychange',visibility);worker?.terminate();if(renderer){renderer.renderer.domElement.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.renderer.domElement.remove();}c.invalidate();i.reset();};
  },[running,retry]);
  return <main className="shell"><header className="topbar"><div className="brand">✦ Gift Lab</div><span>{running?'手势互动已开启':'等待开启摄像头'}</span></header><section className="workspace"><div className="intro"><div><p className="eyebrow">GESTURE GIFTS</p><h1>做个手势，礼物自然出现</h1><p>比心、发射泡泡，或双手捂嘴唤起星星彩带。</p></div><div className="scope-note"><strong>本地处理</strong><span>视频不会录制或上传</span></div></div><div className="stage-grid"><section className="camera-card"><div className={`camera-stage ${orientation}`}><video ref={video} className="camera-video" muted playsInline aria-label="摄像头画面"/><div ref={host} style={{position:'absolute',inset:0}}/>{debug&&<canvas ref={debugCanvas} className="debug-layer"/>}{!running&&<div className="camera-empty">开启摄像头，直接做手势</div>}<div className="stage-label"><span className="scene-chip" style={{background:'#a981ff'}}>手势礼物</span><span className="debug-chip">实时互动</span></div></div><p role="status">{status}</p>{error&&<p role="alert" className="error-text">{error}</p>}<div className="camera-actions"><button className="primary-button" onClick={running?stop:start}>{running?'关闭摄像头':'开启摄像头'}</button>{running&&<><button className="secondary-button" onClick={()=>{resetRef.current();setError('');setRetry(n=>n+1);}}>重试识别</button></>}<button className="secondary-button" aria-pressed={debug} onClick={toggleDebug}>{debug?'隐藏识别信息':'显示识别信息'}</button></div></section><aside className="control-panel"><section className="orientation-select"><p className="eyebrow">01 · 画面方向</p><h2>选择横屏或竖屏</h2><div className="orientation-options">{(['landscape','portrait'] as const).map(o=><button key={o} className={`orientation-option ${orientation===o?'selected':''}`} aria-pressed={orientation===o} onClick={()=>{setOrientation(o);const u=new URL(location.href);u.searchParams.set('orientation',o);history.replaceState(null,'',u);}}><span className={`format-icon ${o}`}/><strong>{o==='landscape'?'横屏':'竖屏'}</strong><small>{o==='landscape'?'16:9':'9:16'}</small></button>)}</div></section><div className="panel-divider"/><p className="eyebrow">02 · 手势介绍</p><h2>作出对应手势，触发互动特效（完整露出整个手部，更容易识别）</h2><div className="scene-list">{gifts.map(([icon,name,hint],n)=><article className="scene-option" key={name} style={{cursor:'default'}}><span className="scene-swatch" style={{background:['#f1b848','#a981ff','#4ac7c2'][n]}}>{icon}</span><div className="scene-text"><strong>{name}</strong><small>{hint}</small>{running&&!ready[['confetti','hearts','bubble'][n]]&&<small>准备中</small>}</div></article>)}</div></aside></div></section></main>;
 }

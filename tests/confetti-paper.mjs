@@ -25,7 +25,7 @@ for (const p of c.particles)
     assert.ok(p.w >= unit * 0.0396 && p.w <= unit * 0.0792);
     assert.equal(p.h, p.w);
   }
-assert.equal(c.particles.length, 240, 'pool unchanged');
+assert.equal(c.particles.length, 160, 'pool fits the maximum round');
 console.log(
   'PASS paper size, five-point outline, rotated and edge-on contact support',
 );

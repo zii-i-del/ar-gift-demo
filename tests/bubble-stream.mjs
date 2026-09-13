@@ -46,7 +46,7 @@ for(const mirror of [false,true]){
  const h=read(index);noPoke.acceptHands([{...h,tip:{x:150,y:150}}],0);noPoke.acceptHands([{...h,tip:{x:210,y:150}}],67);assert.equal(noPoke.bubbles[0].pop,-1);
 }
 assert.equal(bubbleRadius(30,0),6.6);assert.equal(bubbleRadius(30,.45),30);
-assert.deepEqual(orderBubbles([{active:true,birthOrder:9},{active:true,birthOrder:2},{active:true,birthOrder:4}],[]),[1,2,0]);
+assert.deepEqual(orderBubbles([{active:true,birthOrder:9},{active:true,birthOrder:2},{active:true,birthOrder:4},{active:false,birthOrder:1}],[]),[1,2,0]);
 const h={id:'left',tip:{x:300,y:250},wrist:{x:300,y:350},anchor:{x:300,y:300},span:80,heart:false,pointing:false,palm:false,reach:0,gun:true,gunDirection:{x:1,y:0}};
 const full=new Interaction();full.reset();
 for(let i=0;i<7200;i++){const t=i*1000/60;if(i%4===0)full.acceptHands([h,{...h,id:'right'}],t);full.step(1/60,t);assert.ok(full.bubbles.filter(b=>b.active).length<=32);}
@@ -69,3 +69,9 @@ for(const [width,height] of [[1280,720],[720,1280]]){
  assert.equal(e.bubbles.filter(b=>b.active).length,32);
  e.reset();assert.equal(e.bubbles.some(b=>b.active),false);
 }
+
+const counts=new Interaction();
+assert.equal(counts.count,0);
+counts.hearts[0].active=true;counts.bubbles[0].active=true;counts.bubbles[0].pop=.1;
+assert.equal(counts.count,2,'count includes active ruptures and hearts');
+counts.reset();assert.equal(counts.count,0);

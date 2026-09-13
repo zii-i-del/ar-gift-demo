@@ -1,3 +1,4 @@
+import { CONFETTI_CAPACITY } from './confetti-config';
 import * as THREE from 'three';
 import { STAR_POINTS } from './confetti-star';
 function starGeometry() {
@@ -60,10 +61,10 @@ export class ConfettiRenderer {
   private material: THREE.ShaderMaterial;
   private mesh: THREE.InstancedMesh;
   private style = new THREE.InstancedBufferAttribute(
-    new Float32Array(240 * 4),
+    new Float32Array(CONFETTI_CAPACITY * 4),
     4,
   );
-  private flip = new THREE.InstancedBufferAttribute(new Float32Array(240), 1);
+  private flip = new THREE.InstancedBufferAttribute(new Float32Array(CONFETTI_CAPACITY), 1);
   private ramp = prismRamp();
   private object = new THREE.Object3D();
   constructor(private shared?: THREE.WebGLRenderer) {
@@ -99,7 +100,7 @@ export class ConfettiRenderer {
           #include <colorspace_fragment>
         }`,
     });
-    this.mesh = new THREE.InstancedMesh(this.geometry, this.material, 240);
+    this.mesh = new THREE.InstancedMesh(this.geometry, this.material, CONFETTI_CAPACITY);
     this.mesh.frustumCulled = false;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.scene.add(this.mesh);

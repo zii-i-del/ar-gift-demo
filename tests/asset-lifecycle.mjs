@@ -66,24 +66,24 @@ console.log('PASS late assets, second-load cancellation/failure, missing animati
 const page=fs.readFileSync('app/page.tsx','utf8');
 const create=page.slice(page.indexOf('  const createRenderer=async'),page.indexOf('  void createRenderer().catch')).replace("const {GiftRenderer}=await import('../lib/gift-renderer');",'');
 const runtime=ts.transpileModule(`
- let disposed=false,renderer=null,worker=null,gpu=null,busy=false,next=0,workerReady=false;
+ let disposed=false,renderer=null,worker=null,busy=false,next=0,workerReady=false;
  const v={},id=1,i={},updates=[],errors=[],root={appendChild(){}},onLost=()=>{},recoverRenderer=()=>{},receive=()=>{};
  const setReady=value=>updates.push(value),setError=value=>errors.push(value);
  ${create}
  return {createRenderer,close(){disposed=true;renderer?.dispose();},get renderer(){return renderer;},updates,errors};
 `,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
-let workers=0,timers=0;
+let workers=0;
 class FakeRenderer{
  ready={hearts:true,bubble:true};errors={};disposed=false;
  renderer={domElement:{style:{},addEventListener(){}},getContext(){return {};}};
  load(){return new Promise(resolve=>{this.finish=resolve;});}dispose(){this.disposed=true;}
 }
-const setup=()=>new Function('GiftRenderer','GiftGpuTimer','Worker',runtime)(FakeRenderer,class{constructor(){timers++;}},class{constructor(){workers++;}postMessage(){}});
+const setup=()=>new Function('GiftRenderer','Worker',runtime)(FakeRenderer,class{constructor(){workers++;}postMessage(){}});
 {
  const r=setup(),first=r.createRenderer(),old=r.renderer;old.dispose();
  const second=r.createRenderer(),current=r.renderer;old.finish();await first;
- assert.equal(r.updates.length,0);assert.equal(workers,0);assert.equal(timers,0);
- current.finish();await second;assert.equal(r.updates.length,1);assert.equal(workers,1);assert.equal(timers,1);
+ assert.equal(r.updates.length,0);assert.equal(workers,0);
+ current.finish();await second;assert.equal(r.updates.length,1);assert.equal(workers,1);
  const third=r.createRenderer();r.renderer.finish();await third;assert.equal(workers,1,'rebuild does not duplicate the worker');
 }
 {

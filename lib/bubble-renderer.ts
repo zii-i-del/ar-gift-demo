@@ -69,12 +69,12 @@ export class BubbleRenderer {
     for(const slot of this.slots){slot.mesh.visible=false;slot.rupture.root.visible=false;}
     orderBubbles(bubbles,this.order);
     for(let rank=0;rank<this.order.length;rank++){
-      const i=this.order[rank],slot=this.slots[i],b=bubbles[i];slot.mesh.visible=!!b?.active&&b.pop<.06;slot.rupture.root.visible=false;if(!b?.active)continue;
-      slot.mesh.position.set(b.x-width/2,height/2-b.y,rank*.1);slot.mesh.scale.setScalar(b.r);slot.mesh.rotation.z=-(b.hitAngle??0);slot.mesh.renderOrder=rank;slot.rupture.root.renderOrder=rank;for(const drop of slot.rupture.root.children)drop.renderOrder=rank;
+      const i=this.order[rank],slot=this.slots[i],b=bubbles[i];slot.mesh.visible=b.pop<.06;
+      slot.mesh.position.set(b.x-width/2,height/2-b.y,rank*.1);slot.mesh.rotation.z=-(b.hitAngle??0);slot.mesh.renderOrder=rank;slot.rupture.root.renderOrder=rank;for(const drop of slot.rupture.root.children)drop.renderOrder=rank;
       const growth=b.targetR ? Math.sin(Math.PI*Math.min(1,b.age/.45))*.05 : 0;
       slot.mesh.scale.set(b.r*(1-growth),b.r*(1+growth),b.r);
       slot.mesh.morphTargetInfluences![0]=Math.min(1,Math.max(0,(b.squashAmount??0)/.08))*Math.sin(Math.PI*Math.min(1,Math.max(0,(b.squash??0)/.18)));
-      setBubbleUniforms(slot.mesh.material,{age:b.age,pop:b.pop,r:b.r,birthId:b.birthOrder??i,stream:!!b.targetR},width,height,dpr);
+      setBubbleUniforms(slot.mesh.material,b,width,height,dpr,b.birthOrder??i);
       slot.rupture.root.position.copy(slot.mesh.position);slot.rupture.root.rotation.copy(slot.mesh.rotation);slot.rupture.root.scale.setScalar(b.r);slot.rupture.update(b.pop);
     }
     this.renderer.render(this.scene,this.camera);return true;
