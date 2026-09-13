@@ -20,7 +20,7 @@ for(let frame=0;frame<120;frame++){
  }
  e.step(1/60,now);
 }
-assert.equal(e.memories.size,2);const [a,b]=[...e.memories.values()];assert.ok(a.gunSequence>10);assert.equal(b.gunSequence,0,'second hand does not duplicate the stream');
+assert.equal(e.memories.size,2);const [a,b]=[...e.memories.values()];assert.ok(a.gunSequence>=8 && a.gunSequence<=10);assert.equal(b.gunSequence,0,'second hand does not duplicate the stream');
 const radii=Array.from({length:7},(_,i)=>bubbleTargetRadius(80,i));assert.ok(Math.max(...radii)/Math.min(...radii)>2);assert.equal(new Set(radii).size,7);
 assert.ok(radii.every(r=>r>0&&r<37));
 console.log('PASS: label flips, reordered results, stale/jump rejection, stable primary across reordered hands, varied final radii');

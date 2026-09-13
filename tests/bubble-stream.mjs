@@ -36,7 +36,7 @@ for(const mirror of [false,true]){
  for(let i=0;i<240;i++){
   const t=i*1000/60;if(i%4===0)e.acceptHands([gun],t);e.step(1/60,t);
  }
- assert.ok(e.emittedBubbles>=27 && e.emittedBubbles<=31,'dense 8 Hz stream independent of inference sampling');
+ assert.ok(e.emittedBubbles>=19 && e.emittedBubbles<=22,'staggered stream independent of inference sampling');
  assert.equal(e.bubbles.length,BUBBLE_CAPACITY);
  const moving=e.bubbles.find(b=>b.active&&b.age>.5&&b.age<.8);assert.ok(moving.vy<0);
  const count=e.emittedBubbles;e.acceptHands([read(index)],4000);e.step(1/60,4017);
@@ -50,9 +50,9 @@ assert.deepEqual(orderBubbles([{active:true,birthOrder:9},{active:true,birthOrde
 const h={id:'left',tip:{x:300,y:250},wrist:{x:300,y:350},anchor:{x:300,y:300},span:80,heart:false,pointing:false,palm:false,reach:0,gun:true,gunDirection:{x:1,y:0}};
 const full=new Interaction();full.reset();
 for(let i=0;i<7200;i++){const t=i*1000/60;if(i%4===0)full.acceptHands([h,{...h,id:'right'}],t);full.step(1/60,t);assert.ok(full.bubbles.filter(b=>b.active).length<=32);}
-assert.ok(full.emittedBubbles>700&&full.dropped.bubble>0&&full.emittedBubbles+full.dropped.bubble>=890&&full.emittedBubbles+full.dropped.bubble<=900,'32-active cap skips shared opportunities without a backlog');
+assert.ok(full.emittedBubbles>=620&&full.emittedBubbles<=660&&full.dropped.bubble===0,'32-active cap skips shared opportunities without a backlog');
 console.log('PASS: gun vs index, dense stream, stale/stop, no poke, growth, stable overlap ordering, 2-minute bounded simulation');
-// The active cap includes ruptures; a tighter confetti cap must not evict them.
+// Confetti shares the same 32 slots, including ruptures.
 for(const [width,height] of [[1280,720],[720,1280]]){
  const e=new Interaction();e.width=width;e.height=height;
  for(const t of [0,100,200,300])e.acceptHands([h],t);
@@ -61,10 +61,10 @@ for(const [width,height] of [[1280,720],[720,1280]]){
  e.popBubble(slots[0]);e.step(.01,300);
  assert.equal(e.emittedBubbles,0,'rupturing slot still occupies capacity');
  e.autoConfetti=true;e.acceptHands([h],400);e.step(.01,400);
- assert.equal(slots.filter(b=>b.active).length,32,'tightening cap does not remove existing bubbles');
+ assert.equal(slots.filter(b=>b.active).length,32,'confetti preserves all 32 active slots');
  for(const t of [500,600,700])e.acceptHands([h],t);
  e.step(.04,750,.35);assert.equal(slots[0].active,false);
- e.autoConfetti=false;for(const t of [800,900,1000])e.acceptHands([h],t);e.step(.01,1000);
+ for(const t of [800,900,1000])e.acceptHands([h],t);e.step(.01,1000);
  assert.equal(e.emittedBubbles,1);assert.equal(e.bubbles[0],slots[0]);assert.equal(slots[0].pop,-1,'reused slot clears rupture');
  assert.equal(e.bubbles.filter(b=>b.active).length,32);
  e.reset();assert.equal(e.bubbles.some(b=>b.active),false);

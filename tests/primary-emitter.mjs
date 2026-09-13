@@ -9,8 +9,8 @@ function run(kind,portrait,two){
 }
 for(const kind of ['hearts','bubble'])for(const portrait of [false,true]){
  const a=run(kind,portrait,false),b=run(kind,portrait,true);assert.deepEqual(a.births,b.births,'second hand cannot change cadence');
- const minimum=kind==='hearts'?350:portrait?180:125;
- for(let n=1;n<a.births.length;n++){const gap=a.births[n]-a.births[n-1];assert(gap>=minimum-1e-8);assert(gap<=minimum+(kind==='bubble'&&portrait?40:0)+17,'no per-hand or inference-clock extra throttle');}
+ const minimum=kind==='hearts'?350:portrait?180:160;
+ for(let n=1;n<a.births.length;n++){const gap=a.births[n]-a.births[n-1];assert(gap>=minimum-1e-8);assert(gap<=minimum+(kind==='bubble'?40:0)+17,'no per-hand or inference-clock extra throttle');}
  assert(a.births.length>2);console.log(kind,portrait?'portrait':'landscape',a.births.length);
 }
 const p=new PrimaryEmitter(),candidate=(id,kind='hearts',confirmed=true)=>({id,kind,confirmed});
@@ -21,3 +21,5 @@ mixed.acceptHands([hand('A','palm'),hand('B','bubble')],350);mixed.step(.016,350
 const old=mixed.emittedBubbles;mixed.autoBlocked=true;mixed.step(.016,360);mixed.autoBlocked=false;mixed.step(.016,370);assert.equal(mixed.emittedBubbles,old,'mouth suspension cannot resume cached gesture');mixed.acceptHands([hand('B','bubble')],400);mixed.step(.016,400);assert.equal(mixed.emittedBubbles,old);
 const quota=run('hearts',true,false).e;assert(quota.hearts.filter(h=>h.active).length>0,'primary emits within global budget');const active=quota.hearts.filter(h=>h.active).length;quota.autoConfetti=true;quota.step(.016,2010);assert(quota.hearts.filter(h=>h.active).length<=active,'tightening does not add above cap');
 console.log('PASS primary cadence, first/tie ownership, gesture transition, disappearance, palm, global quota and suspension');
+
+assert.ok(run('bubble',false,false).births.length > run('bubble',true,false).births.length,'landscape emits slightly faster');

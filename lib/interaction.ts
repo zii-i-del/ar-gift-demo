@@ -3,7 +3,6 @@ import { PrimaryEmitter, type EmitterCandidate } from './primary-emitter.ts';
 import { gunPose3D, type GunPose3D } from './gun-pose.ts';
 import {
   BUBBLE_CAPACITY,
-  BUBBLE_INTERVAL,
   BUBBLE_LIFETIME,
   bubbleTargetRadius,
   bubbleRadius,
@@ -722,9 +721,7 @@ export class Interaction {
     const bubbleMemories = this.memories.values();
     for (const memory of bubbleMemories) {
       if (primary?.kind !== 'bubble' || primary.id !== memory.hand.id) continue;
-      const interval = portrait
-        ? 180 + ((this.emittedBubbles * 0.61803398875) % 1) * 40
-        : BUBBLE_INTERVAL;
+      const interval = (portrait ? 180 : 160) + ((this.emittedBubbles * 0.61803398875) % 1) * 40;
       if (
         this.autoBlocked ||
         !this.autoReady.bubble ||
@@ -733,8 +730,7 @@ export class Interaction {
         memory.hand.heartPossible
       )
         continue;
-      const limit = this.autoConfetti ? 20 : BUBBLE_CAPACITY;
-      if (this.bubbles.filter((b) => b.active).length >= limit) {
+      if (this.bubbles.filter((b) => b.active).length >= BUBBLE_CAPACITY) {
         this.lastSharedBubble = now;
         this.dropped.bubble++;
         continue;
@@ -755,13 +751,10 @@ export class Interaction {
       const sequence = memory.gunSequence++,
         targetR =
           bubbleTargetRadius(memory.hand.span, sequence) *
-          (this.width > this.height ? 1.1290752 : 1);
+          (this.width > this.height ? 1.01616768 : 1);
       const r = bubbleRadius(targetR, 0),
         scatter =
-          ((portrait
-            ? (((this.emittedBubbles * 0.61803398875) % 1) * 2 - 1) * 25
-            : [-6, 3, -2, 6, 0][sequence % 5]) *
-            Math.PI) /
+          ((((this.emittedBubbles * 0.61803398875) % 1) * 2 - 1) * 25 * Math.PI) /
           180;
       const angle = Math.atan2(memory.gdy, memory.gdx) + scatter;
       const speed = 110 + (sequence % 3) * 10;
