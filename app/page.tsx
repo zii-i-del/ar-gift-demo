@@ -83,7 +83,7 @@ export default function Home(){
     setError(Object.keys(r.errors).length?'部分礼物素材未准备好，其余礼物仍可使用':'');
     // Only the current renderer starts inference, once, after material warm-up.
     if(!worker){
-      worker=new Worker('/tracking-worker.js');worker.onmessage=receive;
+      worker=new Worker('./tracking-worker.js');worker.onmessage=receive;
       worker.onerror=()=>{busy=false;next=Infinity;workerReady=false;setError('识别中断，请重试识别');};
       worker.postMessage({type:'start',sessionId:id,timeOrigin:performance.timeOrigin});
     }

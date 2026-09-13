@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Local-only validation tools
 /tests/
+
+/pages-dist/
+/public/vision/

@@ -37,7 +37,7 @@ export class BubbleRenderer {
     const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(-2,3,4);this.scene.add(light);
   }
   async load(){
-    const loader=new THREE.TextureLoader(),base='/assets/bubble-optical/';
+    const loader=new THREE.TextureLoader(),base='./assets/bubble-optical/';
     // Sequential ownership assignment makes partial failure and unmount cleanup safe.
     for(const name of ['studio-environment.png','film-matcap.png','highlight-matcap.png']){
       const t=await loader.loadAsync(base+name);if(this.disposed){t.dispose();return;}this.maps.push(t);

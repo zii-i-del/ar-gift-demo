@@ -10,7 +10,9 @@
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "predev": "node scripts/prepare-vision.mjs",
+    "build:pages": "node scripts/prepare-vision.mjs && vite build --config pages/vite.config.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

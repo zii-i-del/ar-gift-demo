@@ -1,11 +1,11 @@
 let preparationSamples = 0;
 /* The classic Worker keeps the MediaPipe runtime out of the React/RSC bundle. */
 importScripts(
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.js',
+  './vision/vision_bundle.js',
 );
 
-importScripts('/confetti-surfaces.js');
-importScripts('/gift-scheduler.js');
+importScripts('./confetti-surfaces.js');
+importScripts('./gift-scheduler.js');
 let sessionId = 0,
   tokens = 700,
   tokenTime = 0;
@@ -17,11 +17,11 @@ let faceLandmarker = null;
 let handLandmarker = null;
 let initPromise = null;
 const WASM_ROOT =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm';
+  new URL('./vision/wasm', self.location.href).href;
 const FACE_MODEL =
-  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+  new URL('./vision/face_landmarker.task', self.location.href).href;
 const HAND_MODEL =
-  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+  new URL('./vision/hand_landmarker.task', self.location.href).href;
 
 let mainOrigin = performance.timeOrigin;
 let phase = 'idle',
@@ -42,7 +42,7 @@ async function loadExtraModel(task) {
         {
           baseOptions: {
             modelAssetPath:
-              'https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite',
+              new URL('./vision/hair_segmenter.tflite', self.location.href).href,
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
@@ -56,7 +56,7 @@ async function loadExtraModel(task) {
         {
           baseOptions: {
             modelAssetPath:
-              'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+              new URL('./vision/pose_landmarker_lite.task', self.location.href).href,
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',

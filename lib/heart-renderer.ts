@@ -75,7 +75,7 @@ export class HeartRenderer {
       }
     });
     try {
-    const gltf=await new GLTFLoader().loadAsync('/assets/heart-crystal-v21-pink.glb');
+    const gltf=await new GLTFLoader().loadAsync('./assets/heart-crystal-v21-pink.glb');
     retain(gltf.scene);
     if(this.disposed)return;
     const clip=gltf.animations.find(a=>a.name==='Heart_Grow') || gltf.animations[0];
@@ -85,7 +85,7 @@ export class HeartRenderer {
     const body=gltf.scene.getObjectByName('Heart_Glass');
     if(body)new THREE.Box3().setFromObject(body).getCenter(this.bodyCenter);
     inspect.stopAllAction();inspect.uncacheRoot(gltf.scene);
-    const peach=await new GLTFLoader().loadAsync('/assets/heart-crystal-v21-yellow.glb');
+    const peach=await new GLTFLoader().loadAsync('./assets/heart-crystal-v21-yellow.glb');
     retain(peach.scene);
     if(this.disposed)return;
     const peachBody=peach.scene.getObjectByName('Heart_Glass') as THREE.Mesh;
