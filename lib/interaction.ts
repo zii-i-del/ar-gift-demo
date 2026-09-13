@@ -16,7 +16,6 @@ import {
   HEART_LIFETIME,
 } from './heart-flow.ts';
 import { collideHead, type HeadState } from './head.ts';
-import { collideHeart } from './heart-response.ts';
 import {
   collideLiteHeart,
   stepHeartTurn,
@@ -385,21 +384,8 @@ export type Bubble = {
 };
 
 export class Interaction {
-  readonly heartPetals: HeartPetalPool | null;
-  lightweightHearts: boolean;
-  constructor(lightweightHearts = false) {
-    this.lightweightHearts = lightweightHearts;
-    this.heartPetals = lightweightHearts ? new HeartPetalPool() : null;
-  }
+  readonly heartPetals = new HeartPetalPool();
   hearts: Heart[] = Array.from({ length: HEART_CAPACITY }, () => ({
-    active: false,
-    x: 0,
-    y: 0,
-    age: 0,
-    owner: '',
-    size: 0,
-  }));
-  heartTails: Heart[] = Array.from({ length: HEART_CAPACITY }, () => ({
     active: false,
     x: 0,
     y: 0,
@@ -450,10 +436,7 @@ export class Interaction {
     this.hearts.forEach((h) => {
       h.active = false;
     });
-    this.heartTails.forEach((h) => {
-      h.active = false;
-    });
-    this.heartPetals?.reset();
+    this.heartPetals.reset();
     this.bubbles.forEach((b) => {
       b.active = false;
     });
@@ -794,14 +777,7 @@ export class Interaction {
     }
     const heartElapsed = Math.max(0, dt);
     dt = clamp(dt, 0, 0.04);
-    this.heartPetals?.step(heartElapsed);
-    for (const tail of this.heartTails)
-      if (tail.active) {
-        tail.age += heartElapsed;
-        tail.x += (tail.vx ?? 0) * dt * 0.2;
-        tail.y -= 8 * dt;
-        if (tail.age >= HEART_LIFETIME + 0.27) tail.active = false;
-      }
+    this.heartPetals.step(heartElapsed);
     for (const heart of this.hearts) {
       if (!heart.active) continue;
       const px = heart.x,
@@ -822,15 +798,7 @@ export class Interaction {
         heart.y = memory.oy + memory.ovy * prediction;
       } else {
         heart.vy = (heart.vy ?? 0) - 12 * dt;
-        if (this.lightweightHearts) stepHeartTurn(heart, dt);
-        if (
-          !this.lightweightHearts &&
-          heart.contactAge !== undefined &&
-          heart.age - heart.contactAge > 0.18
-        ) {
-          heart.vx = (heart.vx ?? 0) * Math.exp(-1.1 * dt);
-          heart.vy += (-65 - heart.vy) * (1 - Math.exp(-3 * dt));
-        }
+        stepHeartTurn(heart, dt);
         heart.x += (heart.vx ?? 0) * dt;
         heart.y += (heart.vy ?? 0) * dt;
       }
@@ -841,62 +809,12 @@ export class Interaction {
           now - m.seen <= 160 &&
           (m.hand.id !== heart.owner || heart.age > 0.7)
         )
-          this.lightweightHearts
-            ? collideLiteHeart(
-                heart,
-                px,
-                py,
-                m.palmBody,
-                dt,
-                now,
-                this.width,
-                this.height,
-                m.hand.id,
-              )
-            : collideHeart(
-                heart,
-                px,
-                py,
-                m.palmBody,
-                dt,
-                now,
-                this.width,
-                this.height,
-              );
+          collideLiteHeart(heart, px, py, m.palmBody, dt, now, this.width, this.height, m.hand.id);
       if (this.width > this.height && this.head)
-        this.lightweightHearts
-          ? collideLiteHeart(
-              heart,
-              px,
-              py,
-              this.head,
-              dt,
-              now,
-              this.width,
-              this.height,
-              'face',
-            )
-          : collideHeart(
-              heart,
-              px,
-              py,
-              this.head,
-              dt,
-              now,
-              this.width,
-              this.height,
-            );
+        collideLiteHeart(heart, px, py, this.head, dt, now, this.width, this.height, 'face');
       if (!heart.motesReleased && heart.age >= HEART_LIFETIME - 0.15) {
-        if (this.heartPetals) {
-          this.heartPetals.spawn(heart);
-          heart.motesReleased = true;
-        } else {
-          const tail = this.heartTails.find((t) => !t.active);
-          if (tail) {
-            Object.assign(tail, heart, { active: true });
-            heart.motesReleased = true;
-          }
-        }
+        this.heartPetals.spawn(heart);
+        heart.motesReleased = true;
       }
       if (heart.age >= HEART_LIFETIME) heart.active = false;
     }

@@ -27,7 +27,7 @@ export default function Home(){
  useEffect(()=>{resetRef.current();const track=stream.current?.getVideoTracks()[0];if(!track)return;let cancelled=false;configQueue.current=configQueue.current.catch(()=>{}).then(async()=>{if(cancelled||track.readyState!=='live')return;try{await track.applyConstraints(constraints(orientation));if(!cancelled)resetRef.current();}catch{if(!cancelled)setError('取景方向切换失败，请重新开启摄像头');}});return()=>{cancelled=true;};},[orientation]);
  useEffect(()=>{
   if(!running)return;
-  const v=video.current!,root=host.current!,id=++session.current,c=new Confetti(),i=new Interaction(true),g=new GiftCoordinator();
+  const v=video.current!,root=host.current!,id=++session.current,c=new Confetti(),i=new Interaction(),g=new GiftCoordinator();
   c.externalGestures=true;i.autoReady={hearts:false,bubble:false};
   let disposed=false,worker:Worker|null=null,renderer:GiftRenderer|null=null,frame=0,busy=false,next=Infinity,lastVideo=-1,lastFrame=0,lastUi=0,config='',workerReady=false,readyAt=0,handsAt=-Infinity,handSeq=0,minimumTimestamp=0,recoveries=0,recoveryTimer:ReturnType<typeof setTimeout>|undefined;
   const warmups=['hair','pose'];

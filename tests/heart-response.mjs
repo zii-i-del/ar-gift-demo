@@ -1,13 +1,10 @@
 import assert from 'node:assert/strict';
-import {heartFinish,heartMote,heartSquash,collideHeart,heartCenter} from '../lib/heart-response.ts';
+import {heartFinish,heartSquash,collideHeart,heartCenter} from '../lib/heart-response.ts';
 import {Interaction} from '../lib/interaction.ts';
 import {HEART_LIFETIME as life} from '../lib/heart-flow.ts';
 assert.equal(heartFinish(1),1);assert.equal(heartFinish(life),0);
 let previous=heartFinish(life-.29);
 for(let t=life-.29;t<=life;t+=.002){const s=heartFinish(t);assert(s<=previous+1e-8&&s>=0);previous=s;}
-assert.equal(heartMote(1,80,0,1).alpha,0);assert.equal(heartMote(life+.28,80,0,1).alpha,0);
-assert(heartMote(life+.1,80,0,1).alpha>.5,'motes remain visible after the heart expires');
-assert(heartMote(life-.12,80,0,1).alpha>0);
 assert.equal(heartSquash({age:1,contactAge:0}),0);
 const heart=()=>({active:true,x:320,y:270,age:.9,size:80,owner:'emitter',vx:0,vy:100});
 const h=heart(),center=heartCenter(h);
@@ -31,8 +28,9 @@ for(const kind of ['face','palm','point']){
 }
 console.log('PASS: continuous contraction, bounded motes, soft response, cooldown, stale/inside/newborn protection, face/palm only');
 const e=new Interaction();Object.assign(e.hearts[0],heart(),{age:life-.16});
-e.step(.02,1000);assert.equal(e.heartTails.filter(t=>t.active).length,1);
-e.step(.15,1150);assert(!e.hearts[0].active);assert(e.heartTails[0].active);
+e.step(.02,1000);assert.equal(e.heartPetals.groups.filter(g=>g.active).length,1);
+e.step(.15,1150);assert(!e.hearts[0].active);assert(e.heartPetals.groups[0].active);
+const group=e.heartPetals.groups[0],age=group.age;
 Object.assign(e.hearts[0],heart(),{age:0,motesReleased:false,colorOrder:1});
-assert.equal(e.heartTails[0].age>life,true,'recycling the body does not recycle its motes');
-e.step(.4,1550);assert(!e.heartTails[0].active);e.reset();assert(e.heartTails.every(t=>!t.active));
+assert.equal(group.age,age,'recycling the body does not reset its petals');
+e.step(.4,1550);assert(!group.active);e.reset();assert(e.heartPetals.groups.every(g=>!g.active));

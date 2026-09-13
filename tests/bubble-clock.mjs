@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {Interaction} from '../lib/interaction.ts';
 function setup(width=1280,height=720){
- const i=new Interaction(true);i.width=width;i.height=height;
+ const i=new Interaction();i.width=width;i.height=height;
  Object.assign(i.bubbles[0],{active:true,x:width/2,y:height/2,vx:0,vy:0,r:20,targetR:20,age:0,pop:-1,riseSpeed:0,driftSpeed:0});
  return i;
 }

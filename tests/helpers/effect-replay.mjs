@@ -21,7 +21,7 @@ export function replayEffects() {
         coverPoint(1, 1, width, height, sw, 720),
       ]);
       for (const kind of ['hearts', 'bubble']) {
-        const e = new Interaction(true); e.reset(); e.width = width; e.height = height;
+        const e = new Interaction(); e.reset(); e.width = width; e.height = height;
         const hand = { id: 'A', span: 60, tip: { x: width * .5, y: height * .7 },
           anchor: { x: width * .5, y: height * .8 }, wrist: { x: width * .5, y: height * .9 },
           heartOrigin: { x: width * .5, y: height * .7 }, heartDirection: { x: 0, y: -1 },

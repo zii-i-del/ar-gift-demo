@@ -4,7 +4,7 @@ import {heartBirthSize} from '../lib/heart-flow.ts';
 
 // Approved orientation factors, independent of the production size function.
 for (const [width,height,factor] of [[640,360,1.01616768],[360,640,1.1025],[1920,1080,1.01616768]]) {
-  const e=new Interaction(true);e.reset();e.width=width;e.height=height;
+  const e=new Interaction();e.reset();e.width=width;e.height=height;
   const hand=(id,span)=>({id,span,tip:{x:160,y:180},heartOrigin:{x:160,y:180},heartDirection:{x:0,y:-1},anchor:{x:160,y:180},wrist:{x:160,y:260},heart:true,pointing:false,palm:false,reach:0});
   const hands=[hand('left',30),hand('right',160)];
   e.acceptHands(hands,0);e.acceptHands(hands,100);e.step(1/60,100);

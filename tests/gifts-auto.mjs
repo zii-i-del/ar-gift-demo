@@ -3,7 +3,7 @@ import {Interaction} from '../lib/interaction.ts';
 import {GiftCoordinator} from '../lib/gift-coordinator.ts';
 import '../public/gift-scheduler.js';
 const hand=(id,kind)=>({id,span:60,tip:{x:180,y:220},anchor:{x:180,y:280},wrist:{x:180,y:300},heartOrigin:{x:180,y:220},heartDirection:{x:0,y:-1},heart:kind==='heart',heartPossible:false,gun:kind==='bubble',gunDirection:{x:0,y:-1},palm:false,pointing:false,reach:0});
-const e=new Interaction(true);e.reset();e.width=640;e.height=360;
+const e=new Interaction();e.reset();e.width=640;e.height=360;
 for(let n=0;n<120;n++){const now=n*1000/60;if(n%5===0)e.acceptHands([hand('A','heart'),hand('B','bubble')],now);e.step(1/60,now);}
 assert(e.emittedHearts>0&&e.emittedBubbles===0,'first confirmed hand owns both gift channels');assert(e.bubbles.filter(b=>b.active).length<=32);assert(e.hearts.filter(h=>h.active).length<=12);
 const g=new GiftCoordinator();assert.deepEqual(g.filter([{...hand('A','heart'),gun:true}],false).map(h=>[h.heart,h.gun]),[[false,false]]);
@@ -19,7 +19,7 @@ console.log('PASS auto coexistence, conflict, old results, blocking, fairness, p
 
 // A tracking gap stops births, but fresh confirmed gestures need no recovery timer.
 for (const portrait of [false,true]) for (const kind of ['heart','bubble']) {
- const model=new Interaction(true);model.reset();model.width=portrait?360:640;model.height=portrait?640:360;
+ const model=new Interaction();model.reset();model.width=portrait?360:640;model.height=portrait?640:360;
  for(let t=0;t<=600;t+=100){model.acceptHands([hand('A',kind)],t);model.step(.1,t);}
  const before=model.emittedHearts+model.emittedBubbles;assert(before>0);
  model.autoBlocked=true;

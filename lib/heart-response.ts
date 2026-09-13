@@ -48,12 +48,3 @@ export function collideHeart(h:Heart,px:number,py:number,body:HeadState,dt:numbe
   h.squashAmount=.15+Math.min(.09,speed/180*.09);h.contactAge=h.age;
   return true;
 }
-// Four deterministic, short-lived motes; no new recognition gesture or child hearts.
-export function heartMote(age:number,size:number,index:number,seed:number,lifetime=HEART_LIFETIME){
-  const t=(age-(lifetime-.15))/.42;
-  const q=clamp(t),a=index*Math.PI*.5+seed*.73;
-  const radius=size*(.07+.20*(1-(1-q)**2));
-  return {x:Math.cos(a)*radius,y:Math.sin(a)*radius*.72-size*.08*q,
-    radius:Math.max(3.5,Math.min(6,size*.055))*(1-.25*q),
-    alpha:t<=0||t>=1?0:.95*smooth(q/.14)*(1-smooth((q-.5)/.5))};
-}

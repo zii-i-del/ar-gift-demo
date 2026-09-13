@@ -11,7 +11,7 @@ export default function HeartMotionPreview(){
    try{
     await r.load();if(stopped)return;
     host.current?.appendChild(r.renderer.domElement);
-    const e=new Interaction(true);let elapsed=0,last=performance.now(),sequence=0;
+    const e=new Interaction();let elapsed=0,last=performance.now(),sequence=0;
     const reset=()=>{elapsed=0;e.reset();e.width=440;e.height=360;
      Object.assign(e.hearts[0],{active:true,x:mode==='收尾'?220:mode==='正碰'?245:205,y:mode==='收尾'?240:105,age:.9,size:100,owner:'preview',vx:0,vy:mode==='收尾'?-20:110,colorOrder:sequence%2,birthOrder:sequence,motionAngle:0,angularVelocity:0,contactAge:undefined,contactBody:undefined,contactReleased:true,motesReleased:false,appearanceAngle:0});
     sequence++;};reset();setStatus('当前直播爱心效果 · 固定碰撞输入');

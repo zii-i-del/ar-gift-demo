@@ -12,9 +12,9 @@ for(const x of [205,245,285]){
 const pool=new HeartPetalPool(),refs=pool.groups.map(g=>g.items);const counts=new Set();
 for(let i=0;i<12;i++){assert(pool.spawn({...make(),age:1.75,birthOrder:i}));counts.add(pool.groups[i].count);}
 assert(counts.size>1);assert(!pool.spawn(make()));assert(pool.groups.reduce((n,g)=>n+g.count,0)<=72);pool.step(.56);assert(pool.groups.every(g=>!g.active));pool.reset();assert(refs.every((r,i)=>r===pool.groups[i].items));
-for(const lite of [false,true]){
- const e=new Interaction(lite),times=[];e.width=440;e.height=360;
+{
+ const e=new Interaction(),times=[];e.width=440;e.height=360;
  for(let f=0;f<8400;f++){for(let i=0;i<12;i++)if(!e.hearts[i].active)Object.assign(e.hearts[i],make(),{x:180+i*8,age:.85,birthOrder:f+i,contactAge:undefined,contactBody:undefined,motesReleased:false,motionAngle:0});e.acceptHead({...face,timestamp:f*16.67});const t=performance.now();e.step(1/60,f*16.67);if(f>=1200)times.push(performance.now()-t);}
- times.sort((a,b)=>a-b);console.log(lite?'lightweight':'baseline',{p95:times[Math.floor(times.length*.95)],p99:times[Math.floor(times.length*.99)],frames:times.length});
+ times.sort((a,b)=>a-b);console.log('current',{p95:times[Math.floor(times.length*.95)],p99:times[Math.floor(times.length*.99)],frames:times.length});
 }
 console.log('PASS: rebound, bounded turn, variable fixed pool, overflow and recycling');
