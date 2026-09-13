@@ -30,7 +30,7 @@ export default function Home(){
   const v=video.current!,root=host.current!,id=++session.current,c=new Confetti(),i=new Interaction(),g=new GiftCoordinator();
   c.externalGestures=true;i.autoReady={hearts:false,bubble:false};
   let disposed=false,worker:Worker|null=null,renderer:GiftRenderer|null=null,frame=0,busy=false,next=Infinity,lastVideo=-1,lastFrame=0,lastUi=0,config='',workerReady=false,handsAt=-Infinity,handSeq=0,minimumTimestamp=0,recoveries=0,recoveryTimer:ReturnType<typeof setTimeout>|undefined;
-  const warmups=['hair','pose'];
+  const modelsToLoad=['hair','pose'];
   let requestTimer:ReturnType<typeof setTimeout>|undefined,waiting='',scheduleReason='',interrupted=false;
   const finishRequest=()=>{clearTimeout(requestTimer);requestTimer=undefined;busy=false;waiting='';};
   const failRequest=()=>{finishRequest();worker?.terminate();workerReady=false;interrupted=true;next=Infinity;handsAt=-Infinity;g.reset();i.autoBlocked=true;setError('识别中断，请重试识别');};
@@ -59,7 +59,7 @@ export default function Home(){
     if(p.type==='error'){failRequest();return;}
     if(p.type!=='confetti-result'||p.timestamp<minimumTimestamp||document.hidden)return;
     const now=performance.now();metrics[p.task]={timestamp:p.timestamp,duration:p.duration,valid:p.valid,error:p.error,count:(metrics[p.task]?.count??0)+1};c.accept(p as ConfettiPacket,now);
-    if(p.task==='hair'){g.surfaceReady(c,now,c.modelReady&&!warmups.length&&!waiting.includes('预热')&&!!renderer?.ready.confetti&&!renderer.renderer.getContext().isContextLost());syncConfig(now);}
+    if(p.task==='hair'){g.surfaceReady(c,now,c.modelReady&&!!renderer?.ready.confetti&&!renderer.renderer.getContext().isContextLost());syncConfig(now);}
     if(p.task==='face'){i.acceptHead(c.width>c.height&&p.valid&&now-p.timestamp<=200?readHead(p.faceLandmarks,c.width,c.height,c.sourceW,c.sourceH,p.timestamp,i.head):null);}
     if(p.task==='hands'){
       handsAt=p.timestamp;
@@ -67,7 +67,7 @@ export default function Home(){
       const matches=matchHandTracks(parsed,tracks,p.timestamp);
       const hands:Hand[]=parsed.map(({hand,label}:any,index:number)=>{hand.id=matches[index]??`hand-${handSeq++}`;const prior=tracks.find(t=>t.id===hand.id);if(prior){prior.wrist=hand.wrist;prior.seen=p.timestamp;}else tracks.push({id:hand.id,label,wrist:hand.wrist,seen:p.timestamp});return hand;});
       tracks=tracks.filter(t=>p.timestamp-t.seen<=200);
-      g.sample(c,hands,p.timestamp,now,c.modelReady&&!warmups.length&&!waiting.includes('预热')&&!!renderer?.ready.confetti&&!renderer.renderer.getContext().isContextLost());
+      g.sample(c,hands,p.timestamp,now,c.modelReady&&!!renderer?.ready.confetti&&!renderer.renderer.getContext().isContextLost());
       i.autoBlocked=g.blocked||!renderer||renderer.disposed||renderer.renderer.getContext().isContextLost();i.autoConfetti=c.playing;
       i.acceptHands(g.filter(hands,i.autoBlocked),p.timestamp);syncConfig(now);
     }
@@ -98,23 +98,27 @@ export default function Home(){
     if(disposed)return;frame=requestAnimationFrame(tick);
     if(document.hidden){lastFrame=0;return;}
     const dt=lastFrame?now-lastFrame:16.67;lastFrame=now;
-    g.expire(now);const stale=now-handsAt>200||!workerReady||!!warmups.length||waiting.includes('预热');
+    g.expire(now);const stale=now-handsAt>200||!workerReady;
     i.autoBlocked=g.blocked||stale||!renderer||renderer.disposed||renderer.renderer.getContext().isContextLost();i.autoConfetti=c.playing;
     c.update(dt,now,debugRef.current);i.step(Math.min(dt,40)/1000,now,dt/1000);syncConfig(now);
     if(renderer&&!renderer.disposed&&!renderer.renderer.getContext().isContextLost()){renderer.draw(c,i,v);}
     if(worker&&workerReady&&!busy&&now>=next&&v.readyState>=2&&v.currentTime!==lastVideo){
-      const task=warmups.shift(),sampled=now;lastVideo=v.currentTime;
-      beginRequest(task?`加载与预热${task==='hair'?'头发':'肩部'}`:'取帧',task?30000:5000);
+      const canLoad=now-handsAt<=200&&now-(metrics.face?.timestamp??-Infinity)<=250;
+      const task=canLoad&&(modelsToLoad[0]==='hair'||c.modelReady||c.modelError)?modelsToLoad.shift():undefined;
+      if(task){beginRequest(`加载${task==='hair'?'头发':'肩部'}模型`,30000);try{worker.postMessage({type:'load-model',task,sessionId:id});}catch{failRequest();}}
+      else {
+      const sampled=now;lastVideo=v.currentTime;beginRequest('取帧',scheduleReason==='warmup'?30000:5000);
       void createImageBitmap(v).then(image=>{
         if(disposed||interrupted){image.close();return;}
-        if(document.hidden||sampled<minimumTimestamp){image.close();if(task)warmups.unshift(task);finishRequest();return;}
-        waiting=task?waiting:'推理';
-        try{worker!.postMessage({type:task?'warmup':'frame',task,sessionId:id,timestamp:sampled,image},[image]);}catch{image.close();failRequest();}
+        if(document.hidden||sampled<minimumTimestamp){image.close();finishRequest();return;}
+        waiting='推理';
+        try{worker!.postMessage({type:'frame',sessionId:id,timestamp:sampled,image},[image]);}catch{image.close();failRequest();}
       }).catch(()=>{if(!disposed&&!interrupted)failRequest();});
+      }
     }
     if(now-lastUi>500){lastUi=now;
       const confettiStatus=c.playing?'彩带播放中':!g.armed?'任意一只手离嘴片刻，即可准备下一轮':g.message;
-      setStatus((interrupted?'识别中断，请重试识别':!workerReady||warmups.length||waiting.includes('预热')?'正在准备识别，请稍候…':c.modelError?'彩带识别暂不可用，请重试识别':metrics.hands?.error?'手部识别暂不可用，已停止新增礼物':confettiStatus||(!c.modelReady?'彩带识别准备中；可使用已就绪的礼物':c.poseError?'肩膀识别不可用，彩带仅停留在头发':'爱心和泡泡由先确认的手发射，另一只手可拨动礼物')));
+      setStatus((interrupted?'识别中断，请重试识别':!workerReady?'正在准备识别，请稍候…':c.modelError?'彩带识别暂不可用，请重试识别':metrics.hands?.error?'手部识别暂不可用，已停止新增礼物':confettiStatus||(!c.modelReady?'彩带识别准备中，请稍候；爱心和泡泡可正常使用':c.poseError?'肩膀识别不可用，彩带仅停留在头发':'爱心和泡泡由先确认的手发射，另一只手可拨动礼物')));
       if(debugRef.current){const canvas=debugCanvas.current;if(canvas){canvas.width=c.width;canvas.height=c.height;const ctx=canvas.getContext('2d');if(ctx){renderer?.confetti.debug(ctx,c,now);ctx.fillStyle='#fff';ctx.font='12px sans-serif';ctx.fillText(`识别：${waiting||'等待下一帧'} · ${scheduleReason} · ${g.reason}`,12,c.height-14);}}}
     }
   };frame=requestAnimationFrame(tick);

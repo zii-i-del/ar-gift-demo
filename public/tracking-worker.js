@@ -33,6 +33,7 @@ let lastFace = null,
 const lastRun = { face: 0, hands: 0, hair: 0, pose: 0 },
   cost = { face: 15, hands: 20, hair: 30, pose: 20 };
 const failed = new Set();
+const warmRemaining = {hair:0,pose:0};
 const recovery = {hair:{blockedAt:null,used:false},pose:{blockedAt:null,used:false}};
 async function loadExtraModel(task) {
   const loadStarted = performance.now();
@@ -65,6 +66,7 @@ async function loadExtraModel(task) {
           outputSegmentationMasks: true,
         },
       );
+    warmRemaining[task]=2;
   } catch (error) {
     failed.add(task);
     self.postMessage({
@@ -87,7 +89,8 @@ function schedule(timestamp) {
   const unavailable = new Set(failed);
   if (!hairSegmenter) unavailable.add('hair');
   if (!poseLandmarker) unavailable.add('pose');
-  return GiftScheduler.select(
+  for(const task of ['hair','pose'])if(warmRemaining[task])unavailable.add(task);
+  const selected = GiftScheduler.select(
     now,
     phase,
     lastRun,
@@ -97,6 +100,12 @@ function schedule(timestamp) {
     preparationSamples,
     recovery,
   );
+  // Between real inferences the Worker is free; base tasks retain their cadence.
+  if(!selected.task && selected.reason==='cadence-wait' && now-lastRun.hands<=100 && now-lastRun.face<=100){
+    const task=['hair','pose'].find(t=>warmRemaining[t]&&!failed.has(t)&&tokens>=cost[t]*1.15);
+    if(task)return {task,nextCaptureAt:now,reason:'warmup'};
+  }
+  return selected;
 }
 function announceSchedule() {
   if (faceLandmarker)
@@ -105,8 +114,9 @@ function announceSchedule() {
       ...schedule(0),
     });
 }
-async function inferConfetti(image, timestamp, forcedTask, measuring=false) {
-  const { task, reason } = forcedTask ? {task:forcedTask} : schedule(timestamp);
+async function inferConfetti(image, timestamp) {
+  const { task, reason } = schedule(timestamp);
+  const warming=reason==='warmup',measuring=warming&&warmRemaining[task]===1;
   if(reason==='remeasure')recovery[task].used=true;
   if (!task) return;
   const started = performance.now();
@@ -160,7 +170,7 @@ async function inferConfetti(image, timestamp, forcedTask, measuring=false) {
         r.close();
       }
     }
-    if (task === 'hair' && !forcedTask) preparationSamples++;
+    if (task === 'hair' && !warming) preparationSamples++;
     valid =
       task === 'face'
         ? !!lastFace
@@ -174,9 +184,13 @@ async function inferConfetti(image, timestamp, forcedTask, measuring=false) {
     result = { error: error?.message || '识别失败' };
   }
   const duration = performance.now() - started;
-  if(!forcedTask || measuring)cost[task] = measuring || reason==='remeasure' ? duration : cost[task] * 0.8 + duration * 0.2;
+  if(!warming || measuring)cost[task] = measuring || reason==='remeasure' ? duration : cost[task] * 0.8 + duration * 0.2;
   tokens -= duration;
-  if(forcedTask){if(result.error)throw Error(result.error);return;}
+  if(warming){
+    if(result.error){warmRemaining[task]=0;failed.add(task);self.postMessage({type:'model',task,ready:false,message:result.error});}
+    else if(--warmRemaining[task]===0)self.postMessage({type:'model',task,ready:true});
+    return;
+  }
   if(reason==='remeasure' && (result.error || (cost[task]*1.15+34+cost.hands*1.15>200 || cost[task]*1.15+68+(cost.hands+cost.face)*1.15>250))){
     failed.add(task);self.postMessage({type:'model',task,ready:false,message:task==='hair'?'头发识别耗时超出预算，彩带暂不可用，请重试识别':'肩部识别耗时超出预算，仅使用头发停留'});return;
   }
@@ -219,25 +233,12 @@ self.onmessage = async ({ data }) => {
     data.image?.close();
     return;
   }
-  if (data.type === 'warmup') {
-    if (frameRunning) {data.image?.close();return;}
+  if (data.type === 'load-model') {
+    if (frameRunning) return;
     frameRunning = true;
     try {
       await loadExtraModel(data.task);
-      if(!failed.has(data.task)){
-        for(let n=0;n<2;n++){
-          schedule(0);
-          if(tokens<650)await new Promise(resolve=>setTimeout(resolve,(650-tokens)/0.7));
-          const stamp=performance.timeOrigin+performance.now()-mainOrigin+n*.001;
-          schedule(stamp);
-          await inferConfetti(data.image,stamp,data.task,n===1);
-        }
-        self.postMessage({type:'model',task:data.task,ready:true});
-      }
-    } catch(error){
-      failed.add(data.task);self.postMessage({type:'model',task:data.task,ready:false,message:error?.message||'模型预热失败'});
     } finally {
-      data.image?.close();
       frameRunning = false;
       self.postMessage({ type: 'frame-done' });
       announceSchedule();
