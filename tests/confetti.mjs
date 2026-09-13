@@ -222,11 +222,8 @@ assert.equal(cp.fadeAt, -1, 'large contour change preserves landing');
 const stalls = new Confetti();
 let steps = 0;
 stalls.step = () => steps++;
-for (let i = 0; i < 40; i++) stalls.update(750, 1000 + i * 750);
-assert.equal(stalls.frameCount, 40);
-assert.equal(stalls.longStalls, 40);
+for (let i = 0; i < 40; i++) stalls.update(750, 1000 + i * 750, true);
 assert.equal(stalls.p95, 750);
-assert.equal(stalls.report(31000).maxFrameMs, 750);
 assert.ok(
   steps <= 120,
   'long stalls do not cause an unbounded physics backlog',
@@ -391,3 +388,15 @@ assert.equal(
   'one stale empty observation cannot rearm',
 );
 console.log('PASS end-phase release memory, no overlap and no extra cooldown');
+
+// Diagnostic sampling cannot affect simulation timing or keep stale samples.
+const quiet=new Confetti(),visible=new Confetti(),quietSteps=[],visibleSteps=[];
+quiet.step=(dt,now)=>quietSteps.push([dt,now]);
+visible.step=(dt,now)=>visibleSteps.push([dt,now]);
+for(let n=1;n<=40;n++){quiet.update(20,n*20);visible.update(20,n*20,true);}
+assert.deepEqual(quietSteps,visibleSteps);
+assert.equal(quiet.frameTimes.length,0);assert.equal(quiet.p95,0);
+assert.equal(visible.p50,20);assert.equal(visible.p95,20);
+visible.update(20,820,false);assert.equal(visible.frameTimes.length,0);assert.equal(visible.p95,0);
+for(let n=1;n<=40;n++)visible.update(30,820+n*30,true);
+assert.equal(visible.p50,30);assert.equal(visible.p95,30);

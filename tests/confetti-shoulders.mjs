@@ -433,3 +433,9 @@ assert.equal(allocated.shoulderLaunches.left, 1);
 console.log(
   'PASS bounded shoulder loss recovery and explicit emission allocation',
 );
+
+api.hair(grid(()=>false),face,true,5000);
+assert.ok(api.shoulders(person,pose,5250).left.length,'250 ms cache remains valid at entry');
+assert.equal(api.shoulders(person,pose,5251).left.length,0,'expired cache rejected at entry');
+api.hair(null,face,true,5300);
+assert.equal(api.shoulders(person,pose,5300).left.length,0,'missing cache rejected at entry');

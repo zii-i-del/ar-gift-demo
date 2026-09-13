@@ -87,7 +87,7 @@ export default function Home(){
     const dt=lastFrame?now-lastFrame:16.67;lastFrame=now;size();
     g.expire(now);const stale=now-handsAt>200;
     i.autoBlocked=g.blocked||stale||!renderer||renderer.disposed||renderer.renderer.getContext().isContextLost();i.autoConfetti=c.playing;
-    c.update(dt,now);i.step(Math.min(dt,40)/1000,now,dt/1000);syncConfig(now);
+    c.update(dt,now,debugRef.current);i.step(Math.min(dt,40)/1000,now,dt/1000);syncConfig(now);
     if(renderer&&!renderer.disposed&&!renderer.renderer.getContext().isContextLost()){renderer.draw(c,i,v);}
     if(worker&&workerReady&&!busy&&warmups.length&&now-readyAt>500){busy=true;worker.postMessage({type:'warmup',task:warmups.shift(),sessionId:id});}
     if(worker&&workerReady&&!busy&&now>=next&&v.readyState>=2&&v.currentTime!==lastVideo){busy=true;lastVideo=v.currentTime;const sampled=now;void createImageBitmap(v).then(image=>{if(disposed||document.hidden||sampled<minimumTimestamp){image.close();busy=false;return;}try{worker!.postMessage({type:'frame',sessionId:id,timestamp:sampled,image},[image]);}catch{image.close();busy=false;}}).catch(()=>{busy=false;});}

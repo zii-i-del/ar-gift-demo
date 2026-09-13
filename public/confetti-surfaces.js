@@ -351,77 +351,73 @@
         0,
       );
     }
-    // Hair-covered shoulder portions are unavailable. A stale hair mask cannot
-    // justify increasing shoulder capacity; wait for a fresh segmentation.
-    if (!latestHairGrid || timestamp - latestHairTime > 250)
-      return { left: [], right: [] };
-    if (latestHairGrid)
-      for (const key of ['left', 'right']) {
-        const g = latestHairGrid,
-          exposed = [];
-        for (const run of out[key]) {
-          let part = [];
-          for (const p of run) {
-            const x = Math.floor(p[0] * g.w),
-              y = Math.floor(p[1] * g.h);
-            let covered = false;
-            for (let dy = -2; dy <= 2; dy++)
-              for (let dx = -1; dx <= 1; dx++) {
-                const xx = x + dx,
-                  yy = y + dy;
-                if (
-                  xx >= 0 &&
-                  xx < g.w &&
-                  yy >= 0 &&
-                  yy < g.h &&
-                  g.data[yy * g.w + xx]
-                )
-                  covered = true;
-              }
-            if (covered) {
-              if (part.length > 1) exposed.push(part);
-              part = [];
-            } else part.push(p);
-          }
-          if (part.length > 1) exposed.push(part);
-        }
-        const fitted = shoulderTops(exposed, imageW, imageH, (2 * imageH) / h);
-        out[key] = [];
-        for (const run of fitted) {
-          let supported = [];
-          for (const p of run) {
-            const x = Math.floor(p[0] * w),
-              y = Math.ceil(p[1] * h) + 1;
-            // Place the curve just inside the person; reject unsupported fits.
-            if (
-              y >= 0 &&
-              y < h &&
-              x >= 0 &&
-              x < w &&
-              src[y * w + x] >= 0.65 &&
-              Math.abs(y - p[1] * h) <= 2
-            ) {
-              supported.push([p[0], p[1] + 1 / h]);
-            } else {
-              if (supported.length > 1) out[key].push(supported);
-              supported = [];
+    // Entry validation guarantees a fresh hair grid throughout this synchronous call.
+    for (const key of ['left', 'right']) {
+      const g = latestHairGrid,
+        exposed = [];
+      for (const run of out[key]) {
+        let part = [];
+        for (const p of run) {
+          const x = Math.floor(p[0] * g.w),
+            y = Math.floor(p[1] * g.h);
+          let covered = false;
+          for (let dy = -2; dy <= 2; dy++)
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx,
+                yy = y + dy;
+              if (
+                xx >= 0 &&
+                xx < g.w &&
+                yy >= 0 &&
+                yy < g.h &&
+                g.data[yy * g.w + xx]
+              )
+                covered = true;
             }
-          }
-          if (supported.length > 1) out[key].push(supported);
+          if (covered) {
+            if (part.length > 1) exposed.push(part);
+            part = [];
+          } else part.push(p);
         }
-        if (exposed.length && !out[key].length)
-          root.ConfettiSurfaces.shoulderStats[key + 'Reason'] =
-            '坡度或掩码不支持';
-        else if (
-          !exposed.length &&
-          root.ConfettiSurfaces.shoulderStats[key + 'Raw']
-        )
-          root.ConfettiSurfaces.shoulderStats[key + 'Reason'] = '头发遮挡';
-        root.ConfettiSurfaces.shoulderStats[key + 'Fit'] = out[key].reduce(
-          (n, r) => n + r.length,
-          0,
-        );
+        if (part.length > 1) exposed.push(part);
       }
+      const fitted = shoulderTops(exposed, imageW, imageH, (2 * imageH) / h);
+      out[key] = [];
+      for (const run of fitted) {
+        let supported = [];
+        for (const p of run) {
+          const x = Math.floor(p[0] * w),
+            y = Math.ceil(p[1] * h) + 1;
+          // Place the curve just inside the person; reject unsupported fits.
+          if (
+            y >= 0 &&
+            y < h &&
+            x >= 0 &&
+            x < w &&
+            src[y * w + x] >= 0.65 &&
+            Math.abs(y - p[1] * h) <= 2
+          ) {
+            supported.push([p[0], p[1] + 1 / h]);
+          } else {
+            if (supported.length > 1) out[key].push(supported);
+            supported = [];
+          }
+        }
+        if (supported.length > 1) out[key].push(supported);
+      }
+      if (exposed.length && !out[key].length)
+        root.ConfettiSurfaces.shoulderStats[key + 'Reason'] =
+          '坡度或掩码不支持';
+      else if (
+        !exposed.length &&
+        root.ConfettiSurfaces.shoulderStats[key + 'Raw']
+      )
+        root.ConfettiSurfaces.shoulderStats[key + 'Reason'] = '头发遮挡';
+      root.ConfettiSurfaces.shoulderStats[key + 'Fit'] = out[key].reduce(
+        (n, r) => n + r.length,
+        0,
+      );
+    }
     return out;
   }
   root.ConfettiSurfaces = {

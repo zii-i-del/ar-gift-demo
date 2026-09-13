@@ -257,62 +257,14 @@ export class Confetti {
   emitted = 0;
   accumulator = 0;
   seed = 103;
-  sessionStart = 0;
-  frameHistogram = new Uint32Array(501);
-  frameCount = 0;
-  longStalls = 0;
-  maxFrameMs = 0;
   frameTimes: number[] = [];
   p50 = 0;
   p95 = 0;
   lastStats = 0;
   metrics: Record<
     string,
-    { timestamp: number; duration: number; valid: boolean; count: number }
+    { timestamp: number; duration: number; valid: boolean }
   > = {};
-  report(now: number) {
-    const total = this.frameCount,
-      percentile = (q: number) => {
-        let count = 0;
-        for (let i = 0; i < this.frameHistogram.length; i++) {
-          count += this.frameHistogram[i];
-          if (total && count >= total * q) return i;
-        }
-        return 0;
-      };
-    return {
-      durationSeconds: this.sessionStart ? (now - this.sessionStart) / 1000 : 0,
-      frames: total,
-      longStallsOver200Ms: this.longStalls,
-      maxFrameMs: this.maxFrameMs,
-      histogramOverflowAtMs: 500,
-      sessionP50Ms: percentile(0.5),
-      sessionP95Ms: percentile(0.95),
-      sessionP95IsLowerBound: percentile(0.95) === 500,
-      windowP50Ms: this.p50,
-      windowP95Ms: this.p95,
-      active: this.active,
-      rounds: this.rounds,
-      contacts: this.contacts,
-      frontHairValidation: this.frontHairEnabled,
-      landedByRegion: { ...this.landed },
-      shoulderDiagnostics: this.shoulderDiagnostics,
-      shoulderLaunches: this.shoulderLaunches,
-      shoulderLosses: this.shoulderLosses,
-      tasks: Object.fromEntries(
-        Object.entries(this.metrics).map(([key, m]) => [
-          key,
-          {
-            ...m,
-            resultAgeMs: now - m.timestamp,
-            averageHz: this.sessionStart
-              ? m.count / Math.max(1, (now - this.sessionStart) / 1000)
-              : 0,
-          },
-        ]),
-      ),
-    };
-  }
   get playing() {
     return this.started >= 0;
   }
@@ -480,7 +432,6 @@ export class Confetti {
     });
   }
   accept(r: ConfettiPacket, now: number) {
-    if (!this.sessionStart) this.sessionStart = now;
     if (r.error) {
       if (r.task === 'hair') {
         this.modelError = r.error;
@@ -495,7 +446,6 @@ export class Confetti {
       timestamp: r.timestamp,
       duration: r.duration,
       valid: r.valid,
-      count: (this.metrics[r.task]?.count ?? 0) + 1,
     };
     if (now - r.timestamp > 250) return;
     if (r.task === 'face') {
@@ -1146,15 +1096,13 @@ export class Confetti {
     }
     for (const s of this.surfaces.values()) s.previous = { ...s.frame };
   }
-  update(dtMs: number, now: number) {
+  update(dtMs: number, now: number, sampleFrames = false) {
     if (this.snapshotAt && now >= this.snapshotAt) return;
     this.gesture(now);
     if (!Number.isFinite(dtMs) || dtMs <= 0) {
       this.accumulator = 0;
       return;
     }
-    if (dtMs > 200) this.longStalls++;
-    this.maxFrameMs = Math.max(this.maxFrameMs, dtMs);
     const speed = this.debugSlow ? 0.25 : 1;
     this.accumulator = Math.min(0.05, this.accumulator + (dtMs / 1000) * speed);
     while (this.accumulator >= 1 / 60) {
@@ -1164,8 +1112,11 @@ export class Confetti {
       );
       this.accumulator -= 1 / 60;
     }
-    this.frameHistogram[Math.min(500, Math.round(dtMs))]++;
-    this.frameCount++;
+    if (!sampleFrames) {
+      this.frameTimes.length = 0;
+      this.p50 = this.p95 = this.lastStats = 0;
+      return;
+    }
     this.frameTimes.push(dtMs);
     if (this.frameTimes.length > 240) this.frameTimes.shift();
     if (now - this.lastStats > 500 && this.frameTimes.length >= 30) {
