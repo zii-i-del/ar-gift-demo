@@ -41,3 +41,6 @@ next-env.d.ts
 *.tsbuildinfo
 
 /visual-test-dist/
+
+# Local-only validation tools
+/tests/
