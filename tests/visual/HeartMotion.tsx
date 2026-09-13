@@ -17,7 +17,7 @@ export default function HeartMotionPreview(){
     }sequence++;};reset();setStatus('左侧现有版 · 右侧轻量候选；模型、配色、灯光一致。');
     const tick=(now:number)=>{const dt=Math.min(.04,(now-last)/1000);last=now;
      if(!paused.current){elapsed+=dt;if(elapsed>1.8)reset();for(const e of engines){e.acceptHead(mode==='收尾'?null:{x:245,y:170,rx:45,ry:60,angle:0,vx:0,vy:0,omega:0,timestamp:now,reset:false});e.step(dt,now);}}
-     renderers.forEach((r,i)=>r.draw(engines[i].hearts,440,360,undefined,0,1.9,0x252934,engines[i].heartTails,engines[i].heartPetals));
+     renderers.forEach((r,i)=>r.draw(engines[i].hearts,440,360,0,1.9,0x252934,engines[i].heartTails,engines[i].heartPetals));
      frame=requestAnimationFrame(tick);
     };frame=requestAnimationFrame(tick);
    }catch(e){setStatus('预览加载失败：'+String(e));}

@@ -730,7 +730,8 @@ export class Interaction {
         memory.hand.heartPossible
       )
         continue;
-      if (this.bubbles.filter((b) => b.active).length >= BUBBLE_CAPACITY) {
+      const bubble = this.bubbles.find((b) => !b.active);
+      if (!bubble) {
         this.lastSharedBubble = now;
         this.dropped.bubble++;
         continue;
@@ -743,11 +744,6 @@ export class Interaction {
         now - memory.gunSince < 250
       )
         continue;
-      const bubble = this.bubbles.find((b) => !b.active);
-      if (!bubble) {
-        this.dropped.bubble++;
-        continue;
-      }
       const sequence = memory.gunSequence++,
         targetR =
           bubbleTargetRadius(memory.hand.span, sequence) *

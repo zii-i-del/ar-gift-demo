@@ -13,6 +13,7 @@ export class GiftRenderer {
   hearts:HeartRenderer;
   bubbles:BubbleRenderer;
   disposed=false;
+  private needsClear=true;
   ready={confetti:true,hearts:false,bubble:false};
   errors:Record<string,string>={};
   constructor(video:HTMLVideoElement){
@@ -30,15 +31,20 @@ export class GiftRenderer {
   }
   draw(c:Confetti,i:Interaction,video:HTMLVideoElement){
     const r=this.renderer,dpr=Math.min(devicePixelRatio,1.5);
-    if(r.getPixelRatio()!==dpr)r.setPixelRatio(dpr);
-    if(r.domElement.width!==Math.floor(c.width*dpr)||r.domElement.height!==Math.floor(c.height*dpr))r.setSize(c.width,c.height);
-    r.setRenderTarget(null);r.clear();
-    r.toneMapping=THREE.NoToneMapping;
-    if(c.active)this.confetti.draw(c);
-    r.clearDepth();r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1;
-    if(this.ready.hearts && (i.hearts.some(h=>h.active)||i.heartPetals?.groups.some(g=>g.active)))this.hearts.draw(i.hearts,c.width,c.height,undefined,undefined,undefined,undefined,i.heartTails,i.heartPetals);
-    r.clearDepth();r.toneMapping=THREE.NoToneMapping;
-    if(this.ready.bubble)this.bubbles.draw(i.bubbles,c.width,c.height,video);
+    if(r.getPixelRatio()!==dpr){r.setPixelRatio(dpr);this.needsClear=true;}
+    if(r.domElement.width!==Math.floor(c.width*dpr)||r.domElement.height!==Math.floor(c.height*dpr)){r.setSize(c.width,c.height);this.needsClear=true;}
+    const stars=c.active>0;
+    const hearts=this.ready.hearts&&(i.hearts.some(h=>h.active)||!!i.heartPetals?.groups.some(g=>g.active));
+    const bubbles=this.ready.bubble&&i.bubbles.some(b=>b.active);
+    const active=stars||hearts||bubbles;
+    if(!active&&!this.needsClear)return;
+    r.setRenderTarget(null);r.clear();this.needsClear=active;
+    if(stars){r.toneMapping=THREE.NoToneMapping;this.confetti.draw(c);}
+    if(hearts){
+      r.clearDepth();r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1;
+      this.hearts.draw(i.hearts,c.width,c.height,undefined,undefined,undefined,i.heartTails,i.heartPetals);
+    }
+    if(bubbles){r.clearDepth();r.toneMapping=THREE.NoToneMapping;this.bubbles.draw(i.bubbles,c.width,c.height,video);}
   }
   dispose(){if(this.disposed)return;this.disposed=true;this.confetti.dispose();this.hearts.dispose();this.bubbles.dispose();this.videoTexture.dispose();this.renderer.dispose();this.renderer.forceContextLoss();}
 }

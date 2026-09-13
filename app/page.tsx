@@ -34,8 +34,16 @@ export default function Home(){
   let tracks:Array<{id:string;label:string;wrist:{x:number;y:number};seen:number}>=[];
   const metrics:Record<string,{timestamp:number;duration:number;valid:boolean;error?:string;count:number}>={};
   const reset=()=>{minimumTimestamp=performance.now();c.invalidate();g.reset();i.reset();tracks=[];handsAt=-Infinity;lastFrame=0;};resetRef.current=reset;
-  const size=()=>{const b=root.getBoundingClientRect();if(b.width&&b.height){if(c.width!==b.width||c.height!==b.height||(v.videoWidth&&c.sourceW!==v.videoWidth)||(v.videoHeight&&c.sourceH!==v.videoHeight))reset();c.resize(b.width,b.height,v.videoWidth||b.width,v.videoHeight||b.height);i.width=b.width;i.height=b.height;}};
+  const size=()=>{
+    if(disposed)return;
+    const {width,height}=root.getBoundingClientRect();
+    if(!width||!height)return;
+    const sourceW=v.videoWidth||width,sourceH=v.videoHeight||height;
+    if(c.width===width&&c.height===height&&c.sourceW===sourceW&&c.sourceH===sourceH)return;
+    reset();c.resize(width,height,sourceW,sourceH);i.width=width;i.height=height;
+  };
   const resize=new ResizeObserver(size);resize.observe(root);
+  v.addEventListener('loadedmetadata',size);v.addEventListener('resize',size);size();
   const visibility=()=>{reset();};document.addEventListener('visibilitychange',visibility);
   const syncConfig=(now:number)=>{const value=g.phase(c,now);if(config!==value){worker?.postMessage({type:'configure',sessionId:id,phase:value});config=value;}};
   const receive=(event:MessageEvent)=>{
@@ -48,7 +56,7 @@ export default function Home(){
     if(p.type!=='confetti-result'||p.timestamp<minimumTimestamp||document.hidden)return;
     const now=performance.now();metrics[p.task]={timestamp:p.timestamp,duration:p.duration,valid:p.valid,error:p.error,count:(metrics[p.task]?.count??0)+1};c.accept(p as ConfettiPacket,now);
     if(p.task==='hair'){g.surfaceReady(c,now,!!renderer?.ready.confetti&&!renderer.renderer.getContext().isContextLost());syncConfig(now);}
-    if(p.task==='face'){i.acceptHead(p.valid&&now-p.timestamp<=200?readHead(p.faceLandmarks,c.width,c.height,c.sourceW,c.sourceH,p.timestamp,i.head):null);}
+    if(p.task==='face'){i.acceptHead(c.width>c.height&&p.valid&&now-p.timestamp<=200?readHead(p.faceLandmarks,c.width,c.height,c.sourceW,c.sourceH,p.timestamp,i.head):null);}
     if(p.task==='hands'){
       handsAt=p.timestamp;
       const parsed=(p.valid&&!p.error&&now-p.timestamp<=200?p.hands:[]).map((raw:number[],index:number)=>({hand:readHand(raw,`candidate-${index}`,c.width,c.height,c.sourceW,c.sourceH,p.worldHands?.[index]),label:p.handedness?.[index]??'Unknown'})).filter((x:any)=>x.hand);
@@ -84,7 +92,7 @@ export default function Home(){
   const tick=(now:number)=>{
     if(disposed)return;frame=requestAnimationFrame(tick);
     if(document.hidden){lastFrame=0;return;}
-    const dt=lastFrame?now-lastFrame:16.67;lastFrame=now;size();
+    const dt=lastFrame?now-lastFrame:16.67;lastFrame=now;
     g.expire(now);const stale=now-handsAt>200;
     i.autoBlocked=g.blocked||stale||!renderer||renderer.disposed||renderer.renderer.getContext().isContextLost();i.autoConfetti=c.playing;
     c.update(dt,now,debugRef.current);i.step(Math.min(dt,40)/1000,now,dt/1000);syncConfig(now);
@@ -97,7 +105,7 @@ export default function Home(){
       if(debugRef.current){const canvas=debugCanvas.current;if(canvas){canvas.width=c.width;canvas.height=c.height;const ctx=canvas.getContext('2d');if(ctx)renderer?.confetti.debug(ctx,c,now);}}
     }
   };frame=requestAnimationFrame(tick);
-  return()=>{disposed=true;resetRef.current=()=>{};cancelAnimationFrame(frame);clearTimeout(recoveryTimer);resize.disconnect();document.removeEventListener('visibilitychange',visibility);worker?.terminate();if(renderer){renderer.renderer.domElement.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.renderer.domElement.remove();}c.invalidate();i.reset();};
+  return()=>{disposed=true;resetRef.current=()=>{};cancelAnimationFrame(frame);clearTimeout(recoveryTimer);resize.disconnect();v.removeEventListener('loadedmetadata',size);v.removeEventListener('resize',size);document.removeEventListener('visibilitychange',visibility);worker?.terminate();if(renderer){renderer.renderer.domElement.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.renderer.domElement.remove();}c.invalidate();i.reset();};
  },[running,retry]);
  return <main className="shell"><header className="topbar"><div className="brand">✦ Gift Lab</div><span>{running?'手势互动已开启':'等待开启摄像头'}</span></header><section className="workspace"><div className="intro"><div><p className="eyebrow">GESTURE GIFTS</p><h1>做个手势，礼物自然出现</h1><p>比心、发射泡泡，或双手捂嘴唤起星星彩带。</p></div><div className="scope-note"><strong>本地处理</strong><span>视频不会录制或上传</span></div></div><div className="stage-grid"><section className="camera-card"><div className={`camera-stage ${orientation}`}><video ref={video} className="camera-video" muted playsInline aria-label="摄像头画面"/><div ref={host} style={{position:'absolute',inset:0}}/>{debug&&<canvas ref={debugCanvas} className="debug-layer"/>}{!running&&<div className="camera-empty">开启摄像头，直接做手势</div>}<div className="stage-label"><span className="scene-chip" style={{background:'#a981ff'}}>手势礼物</span><span className="debug-chip">实时互动</span></div></div><p role="status">{status}</p>{error&&<p role="alert" className="error-text">{error}</p>}<div className="camera-actions"><button className="primary-button" onClick={running?stop:start}>{running?'关闭摄像头':'开启摄像头'}</button>{running&&<><button className="secondary-button" onClick={()=>{resetRef.current();setError('');setRetry(n=>n+1);}}>重试识别</button></>}<button className="secondary-button" aria-pressed={debug} onClick={toggleDebug}>{debug?'隐藏识别信息':'显示识别信息'}</button></div></section><aside className="control-panel"><section className="orientation-select"><p className="eyebrow">01 · 画面方向</p><h2>选择横屏或竖屏</h2><div className="orientation-options">{(['landscape','portrait'] as const).map(o=><button key={o} className={`orientation-option ${orientation===o?'selected':''}`} aria-pressed={orientation===o} onClick={()=>{setOrientation(o);const u=new URL(location.href);u.searchParams.set('orientation',o);history.replaceState(null,'',u);}}><span className={`format-icon ${o}`}/><strong>{o==='landscape'?'横屏':'竖屏'}</strong><small>{o==='landscape'?'16:9':'9:16'}</small></button>)}</div></section><div className="panel-divider"/><p className="eyebrow">02 · 手势介绍</p><h2>作出对应手势，触发互动特效（完整露出整个手部，更容易识别）</h2><div className="scene-list">{gifts.map(([icon,name,hint],n)=><article className="scene-option" key={name} style={{cursor:'default'}}><span className="scene-swatch" style={{background:['#f1b848','#a981ff','#4ac7c2'][n]}}>{icon}</span><div className="scene-text"><strong>{name}</strong><small>{hint}</small>{running&&!ready[['confetti','hearts','bubble'][n]]&&<small>准备中</small>}</div></article>)}</div></aside></div></section></main>;
 }

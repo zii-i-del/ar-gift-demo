@@ -115,11 +115,13 @@ export class ConfettiRenderer {
       this.renderer.domElement.height !== Math.floor(c.height * dpr)
     )
       this.renderer.setSize(c.width, c.height);
-    this.camera.left = 0;
-    this.camera.right = c.width;
-    this.camera.top = 0;
-    this.camera.bottom = c.height;
-    this.camera.updateProjectionMatrix();
+    if (this.camera.right !== c.width || this.camera.bottom !== c.height) {
+      this.camera.left = 0;
+      this.camera.right = c.width;
+      this.camera.top = 0;
+      this.camera.bottom = c.height;
+      this.camera.updateProjectionMatrix();
+    }
     // Contact layer first, foreground last; depth is an authored visual layer.
     let n = 0;
     for (const front of [false, true])

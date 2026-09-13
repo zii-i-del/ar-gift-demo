@@ -8,7 +8,9 @@ import type {Bubble} from './interaction';
 // One video texture / background target for the entire pool; output contains only bubble pixels.
 export class BubbleRenderer {
   renderer:THREE.WebGLRenderer;
-  private videoTime=-1;
+  private videoVersion=-1;
+  private sourceWidth=0;
+  private sourceHeight=0;
   private targetWidth=0;
   private targetHeight=0;
   ready=false;
@@ -60,12 +62,19 @@ export class BubbleRenderer {
     this.renderer.getSize(this.size);const dpr=this.renderer.getPixelRatio();
     if(this.size.x!==width||this.size.y!==height)this.renderer.setSize(width,height);
     const k=Math.min(dpr,1280/width,720/height),tw=Math.max(1,Math.round(width*k)),th=Math.max(1,Math.round(height*k));
-    if(this.targetWidth!==tw||this.targetHeight!==th){this.target.setSize(tw,th);this.targetWidth=tw;this.targetHeight=th;this.videoTime=-1;}
-    if(!this.videoTexture||this.videoTexture.image!==video){if(!this.sharedVideo)this.videoTexture?.dispose();this.videoTexture=this.sharedVideo ?? new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;this.plane.material.map=this.videoTexture;this.plane.material.needsUpdate=true;}
+    if(this.targetWidth!==tw||this.targetHeight!==th){this.target.setSize(tw,th);this.targetWidth=tw;this.targetHeight=th;this.videoVersion=-1;}
+    if(!this.videoTexture||this.videoTexture.image!==video){if(!this.sharedVideo)this.videoTexture?.dispose();this.videoTexture=this.sharedVideo ?? new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;this.plane.material.map=this.videoTexture;this.plane.material.needsUpdate=true;this.videoVersion=-1;}
+    if(this.sourceWidth!==video.videoWidth||this.sourceHeight!==video.videoHeight){
+      this.sourceWidth=video.videoWidth;this.sourceHeight=video.videoHeight;this.videoVersion=-1;
+    }
     const cover=cameraScale(width,height,video.videoWidth,video.videoHeight),rx=width>=height?1:width/(video.videoWidth*cover),ry=width>=height?1:height/(video.videoHeight*cover);
     this.videoTexture.repeat.set(-rx,ry);this.videoTexture.offset.set((1+rx)/2,(1-ry)/2);
-    this.camera.left=-width/2;this.camera.right=width/2;this.camera.top=height/2;this.camera.bottom=-height/2;this.camera.updateProjectionMatrix();this.plane.scale.set(width>=height?video.videoWidth*cover:width,width>=height?video.videoHeight*cover:height,1);
-    if(this.videoTime!==video.currentTime){this.renderer.setRenderTarget(this.target);this.renderer.clear();this.renderer.render(this.back,this.camera);this.renderer.setRenderTarget(null);this.videoTime=video.currentTime;}
+    if(this.camera.right!==width/2||this.camera.top!==height/2){
+      this.camera.left=-width/2;this.camera.right=width/2;this.camera.top=height/2;this.camera.bottom=-height/2;this.camera.updateProjectionMatrix();this.videoVersion=-1;
+    }
+    this.plane.scale.set(width>=height?video.videoWidth*cover:width,width>=height?video.videoHeight*cover:height,1);
+    this.videoTexture.update();
+    if(this.videoVersion!==this.videoTexture.version){this.renderer.setRenderTarget(this.target);this.renderer.clear();this.renderer.render(this.back,this.camera);this.renderer.setRenderTarget(null);this.videoVersion=this.videoTexture.version;}
     for(const slot of this.slots){slot.mesh.visible=false;slot.rupture.root.visible=false;}
     orderBubbles(bubbles,this.order);
     for(let rank=0;rank<this.order.length;rank++){

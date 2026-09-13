@@ -1,4 +1,3 @@
-import {cameraScale} from "./coordinates";
 import { orderHearts, heartDepthLayout } from './heart-presentation.ts';
 import { animatedHeartRadius } from './heart-bounds.ts';
 import { HEART_CAPACITY, HEART_LIFETIME } from './heart-flow.ts';
@@ -32,7 +31,6 @@ export class HeartRenderer {
   private renderSize=new THREE.Vector2();
   private environment: THREE.WebGLRenderTarget;
   private assetTextures=new Set<THREE.Texture>();
-  private videoTexture?: THREE.VideoTexture;
   private videoPlane = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({color:0xf2eeee}));
   constructor(private lightweight=false, private shared?:THREE.WebGLRenderer) {
     this.renderer = shared ?? new THREE.WebGLRenderer({alpha:true,antialias:true});
@@ -134,25 +132,20 @@ export class HeartRenderer {
     material.clearcoat=.65;
     material.clearcoatRoughness=.13;
   }
-  draw(hearts:Heart[],width:number,height:number,video?:HTMLVideoElement,previewAngle?:number,lifetime=HEART_LIFETIME,background=0xf2eeee,tails:Heart[]=[],petals?:HeartPetalPool|null) {
+  draw(hearts:Heart[],width:number,height:number,previewAngle?:number,lifetime=HEART_LIFETIME,background=0xf2eeee,tails:Heart[]=[],petals?:HeartPetalPool|null) {
     if(!this.ready || width<1 || height<1)return;
     const size=this.renderSize;this.renderer.getSize(size);
     if(size.x!==width||size.y!==height)this.renderer.setSize(width,height);
     orderHearts(hearts,this.ordered,lifetime);
     let maxSize=0;for(let rank=0;rank<this.ordered.length;rank++){const i=this.ordered[rank];this.ranks[i]=rank;maxSize=Math.max(maxSize,hearts[i].size);}
     const depth=heartDepthLayout(this.modelRadius*maxSize/2,this.ordered.length);
-    this.camera.position.z=depth.cameraZ;this.camera.far=depth.far;this.videoPlane.position.z=depth.backgroundZ;
-    this.camera.left=-width/2;this.camera.right=width/2;this.camera.top=height/2;this.camera.bottom=-height/2;this.camera.updateProjectionMatrix();
-    this.videoPlane.scale.set(width,height,1);
-    if(video && video.readyState>=2){
-      if(!this.videoTexture){this.videoTexture=new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;this.videoPlane.material.map=this.videoTexture;this.videoPlane.material.color.set(0xffffff);this.videoPlane.material.needsUpdate=true;}
-      const ratio=cameraScale(width,height,video.videoWidth,video.videoHeight);
-      if(width>=height)this.videoPlane.scale.set(video.videoWidth*ratio,video.videoHeight*ratio,1);
-      const rx=width>=height?1:width/(video.videoWidth*ratio),ry=width>=height?1:height/(video.videoHeight*ratio);
-      this.videoTexture.repeat.set(-rx,ry);this.videoTexture.offset.set((1+rx)/2,(1-ry)/2);
+    this.camera.position.z=depth.cameraZ;this.videoPlane.position.z=depth.backgroundZ;
+    if(this.camera.right!==width/2||this.camera.top!==height/2||this.camera.far!==depth.far){
+      this.camera.far=depth.far;
+      this.camera.left=-width/2;this.camera.right=width/2;this.camera.top=height/2;this.camera.bottom=-height/2;this.camera.updateProjectionMatrix();
     }
-    if(!video){this.videoPlane.material.map=null;this.videoPlane.material.color.setHex(background);}
-    else if(this.videoTexture && this.videoPlane.material.map!==this.videoTexture){this.videoPlane.material.map=this.videoTexture;this.videoPlane.material.color.setHex(0xffffff);this.videoPlane.material.needsUpdate=true;}
+    this.videoPlane.scale.set(width,height,1);
+    this.videoPlane.material.color.setHex(background);
     this.videoPlane.visible=!this.shared;
     let moteCount=0;
     for(let i=0;i<HEART_CAPACITY;i++) {
@@ -235,6 +228,6 @@ export class HeartRenderer {
     this.motes.geometry.dispose();(this.motes.material as THREE.Material).dispose();
     const geometries=new Set<THREE.BufferGeometry>();
     for(const s of this.slots){s.mixer.stopAllAction();s.mixer.uncacheRoot(s.mixer.getRoot());s.materials.forEach(m=>m.dispose());s.peach.forEach(m=>m.dispose());s.root.traverse(o=>{if(o instanceof THREE.Mesh)geometries.add(o.geometry);});}
-    geometries.forEach(g=>g.dispose());this.assetTextures.forEach(t=>t.dispose());this.assetTextures.clear();this.videoTexture?.dispose();this.videoPlane.geometry.dispose();this.videoPlane.material.dispose();this.environment.dispose();if(!this.shared)this.renderer.dispose();this.slots=[];
+    geometries.forEach(g=>g.dispose());this.assetTextures.forEach(t=>t.dispose());this.assetTextures.clear();this.videoPlane.geometry.dispose();this.videoPlane.material.dispose();this.environment.dispose();if(!this.shared)this.renderer.dispose();this.slots=[];
   }
 }
