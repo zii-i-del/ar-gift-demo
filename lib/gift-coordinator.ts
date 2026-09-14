@@ -34,7 +34,7 @@ export class GiftCoordinator {
         const observed=hands.map(h=>({id:h.id,state:mouthRegion(h.landmarks,c.map,mouth,frame.scale).state}));
         this.armed=this.release.observe(observed,timestamp,covered);
       }else this.release.observe([],timestamp,false);
-      this.message=this.armed?'':'任意一只手离开嘴部片刻，即可准备下一轮';
+      this.message=this.armed?'':'任意一只手离嘴片刻，即可准备下一轮彩带';
       return;
     }
     if(c.playing){this.candidate=this.preparing=-1;return;}
