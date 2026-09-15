@@ -417,7 +417,6 @@ export class Interaction {
   dropped = { hearts: 0, bubble: 0 };
   private lastHandSample = -Infinity;
 
-  hint = '把手放入画面';
   emittedHearts = 0;
   emittedBubbles = 0;
   popped = 0;
@@ -436,7 +435,6 @@ export class Interaction {
     this.bubbles.forEach((b) => {
       b.active = false;
     });
-    this.hint = '作出对应手势，触发互动特效';
   }
   acceptHands(hands: Hand[], now: number) {
     if (now <= this.lastHandSample) return;
@@ -454,12 +452,6 @@ export class Interaction {
         memory.heartSince = -1;
         memory.heartConfirmed = false;
       }
-    this.hint =
-      hands.length === 0
-        ? '未识别到手，请将手掌和手腕一起移入画面'
-        : hands.some((hand) => hand.gun)
-          ? '保持手势，指尖连续发射泡泡'
-          : '发射手势未确认：请保持食指伸直、拇指张开，并让手指轮廓清楚可见';
     for (const hand of hands) {
       let memory = this.memories.get(hand.id);
       if (!memory || now - memory.seen > 200) {
@@ -540,7 +532,6 @@ export class Interaction {
         if (memory.heartSince < 0) memory.heartSince = now;
         if (hand.heart && now - memory.heartSince >= 100)
           memory.heartConfirmed = true;
-        this.hint = '爱心会从指尖飘走 · 保持比心可继续生成';
       } else {
         memory.heartSince = -1;
         memory.heartConfirmed = false;
@@ -769,7 +760,6 @@ export class Interaction {
         birthOrder: ++this.emittedBubbles,
       });
       this.lastSharedBubble = now;
-      this.hint = '拇指、食指伸直，其余三指收拢 · 张开手掌可拨动泡泡';
     }
     const heartElapsed = Math.max(0, dt);
     dt = clamp(dt, 0, 0.04);

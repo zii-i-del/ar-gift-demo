@@ -27,8 +27,8 @@ export class BubbleRenderer {
   private size=new THREE.Vector2();
   private ruptureGeometry=makeRuptureGeometry();
   private slots:{mesh:THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;rupture:ReturnType<typeof makeRuptureController>}[]=[];
-  constructor(private shared?:THREE.WebGLRenderer, private sharedVideo?:THREE.VideoTexture){
-    this.renderer=shared ?? new THREE.WebGLRenderer({alpha:true,antialias:true});
+  constructor(renderer:THREE.WebGLRenderer, private sharedVideo:THREE.VideoTexture){
+    this.renderer=renderer;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.setClearColor(0,0);this.target.texture.colorSpace=THREE.LinearSRGBColorSpace;
@@ -63,7 +63,7 @@ export class BubbleRenderer {
     if(this.size.x!==width||this.size.y!==height)this.renderer.setSize(width,height);
     const k=Math.min(dpr,1280/width,720/height),tw=Math.max(1,Math.round(width*k)),th=Math.max(1,Math.round(height*k));
     if(this.targetWidth!==tw||this.targetHeight!==th){this.target.setSize(tw,th);this.targetWidth=tw;this.targetHeight=th;this.videoVersion=-1;}
-    if(!this.videoTexture||this.videoTexture.image!==video){if(!this.sharedVideo)this.videoTexture?.dispose();this.videoTexture=this.sharedVideo ?? new THREE.VideoTexture(video);this.videoTexture.colorSpace=THREE.SRGBColorSpace;this.plane.material.map=this.videoTexture;this.plane.material.needsUpdate=true;this.videoVersion=-1;}
+    if(!this.videoTexture||this.videoTexture.image!==video){this.videoTexture=this.sharedVideo;this.videoTexture.colorSpace=THREE.SRGBColorSpace;this.plane.material.map=this.videoTexture;this.plane.material.needsUpdate=true;this.videoVersion=-1;}
     if(this.sourceWidth!==video.videoWidth||this.sourceHeight!==video.videoHeight){
       this.sourceWidth=video.videoWidth;this.sourceHeight=video.videoHeight;this.videoVersion=-1;
     }
@@ -88,5 +88,5 @@ export class BubbleRenderer {
     }
     this.renderer.render(this.scene,this.camera);return true;
   }
-  dispose(){if(this.disposed)return;this.disposed=true;this.ready=false;this.slots.forEach(s=>{s.mesh.material.dispose();s.rupture.dispose();});this.slots=[];this.geometry?.dispose();this.ruptureGeometry.drop.dispose();this.maps.forEach(t=>t.dispose());this.maps=[];if(!this.sharedVideo)this.videoTexture?.dispose();this.plane.geometry.dispose();this.plane.material.dispose();this.target.dispose();if(!this.shared)this.renderer.dispose();}
+  dispose(){if(this.disposed)return;this.disposed=true;this.ready=false;this.slots.forEach(s=>{s.mesh.material.dispose();s.rupture.dispose();});this.slots=[];this.geometry?.dispose();this.ruptureGeometry.drop.dispose();this.maps.forEach(t=>t.dispose());this.maps=[];this.plane.geometry.dispose();this.plane.material.dispose();this.target.dispose();}
 }

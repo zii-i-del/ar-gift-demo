@@ -31,8 +31,8 @@ export class HeartRenderer {
   private renderSize=new THREE.Vector2();
   private environment: THREE.WebGLRenderTarget;
   private assetTextures=new Set<THREE.Texture>();
-  constructor(private shared?:THREE.WebGLRenderer) {
-    this.renderer = shared ?? new THREE.WebGLRenderer({alpha:true,antialias:true});
+  constructor(renderer: THREE.WebGLRenderer) {
+    this.renderer = renderer;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1;
@@ -199,6 +199,6 @@ export class HeartRenderer {
     this.motes.geometry.dispose();(this.motes.material as THREE.Material).dispose();
     const geometries=new Set<THREE.BufferGeometry>();
     for(const s of this.slots){s.mixer.stopAllAction();s.mixer.uncacheRoot(s.mixer.getRoot());s.materials.forEach(m=>m.dispose());s.peach.forEach(m=>m.dispose());s.root.traverse(o=>{if(o instanceof THREE.Mesh)geometries.add(o.geometry);});}
-    geometries.forEach(g=>g.dispose());this.assetTextures.forEach(t=>t.dispose());this.assetTextures.clear();this.environment.dispose();if(!this.shared)this.renderer.dispose();this.slots=[];
+    geometries.forEach(g=>g.dispose());this.assetTextures.forEach(t=>t.dispose());this.assetTextures.clear();this.environment.dispose();this.slots=[];
   }
 }

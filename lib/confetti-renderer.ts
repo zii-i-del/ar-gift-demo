@@ -67,8 +67,8 @@ export class ConfettiRenderer {
   private flip = new THREE.InstancedBufferAttribute(new Float32Array(CONFETTI_CAPACITY), 1);
   private ramp = prismRamp();
   private object = new THREE.Object3D();
-  constructor(private shared?: THREE.WebGLRenderer) {
-    this.renderer=shared ?? new THREE.WebGLRenderer({alpha:true,antialias:true});
+  constructor(renderer: THREE.WebGLRenderer) {
+    this.renderer = renderer;
     this.style.setUsage(THREE.DynamicDrawUsage);
     this.flip.setUsage(THREE.DynamicDrawUsage);
     this.geometry.setAttribute('instanceStyle', this.style);
@@ -269,6 +269,5 @@ export class ConfettiRenderer {
     this.geometry.dispose();
     this.material.dispose();
     this.ramp.dispose();
-    if(!this.shared){this.renderer.dispose();this.renderer.forceContextLoss();}
   }
 }
