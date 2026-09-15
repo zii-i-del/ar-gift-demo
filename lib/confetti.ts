@@ -249,10 +249,6 @@ export class Confetti {
   modelError = '';
   poseError = '';
   started = -1;
-  candidate = -1;
-  released = -1;
-  rearming = false;
-  armed = true;
   count = CONFETTI_CAPACITY;
   emitted = 0;
   accumulator = 0;
@@ -267,15 +263,6 @@ export class Confetti {
   > = {};
   get playing() {
     return this.started >= 0;
-  }
-  get phase() {
-    return this.playing
-      ? this.rearming
-        ? 'finishing'
-        : 'playing'
-      : this.candidate >= 0
-        ? 'candidate'
-        : 'idle';
   }
   get active() {
     let n = 0;
@@ -326,9 +313,6 @@ export class Confetti {
     this.snapshotAt = 0;
     for (const p of this.particles) p.state = 0;
     this.started = -1;
-    this.candidate = -1;
-    this.released = -1;
-    this.armed = true;
     this.accumulator = 0;
     this.emitted = 0;
   }
@@ -570,10 +554,6 @@ export class Confetti {
     this.crownLaunches = 0;
     this.count = count ?? confettiCount(this.height > this.width);
     this.emitted = 0;
-    this.armed = false;
-    this.rearming = false;
-    this.candidate = -1;
-    this.released = -1;
     return true;
   }
   mouthReference(now: number): Point | null {
@@ -604,36 +584,6 @@ export class Confetti {
         y: nose.y + this.mouthOffset.y * f.scale,
       };
     return null;
-  }
-  externalGestures = false;
-  gesture(now: number) {
-    if(this.externalGestures)return;
-    this.rearming =
-      this.playing &&
-      (now - this.started) * (this.debugSlow ? 0.25 : 1) >= 5500;
-    if (this.playing && !this.rearming) return;
-    if (now - this.faceTime > 250 || now - this.handsTime > 250) {
-      this.candidate = -1;
-      this.released = -1;
-      return;
-    }
-    const covered = coversMouth(
-      this.face,
-      this.hands,
-      this.map,
-      this.mouthReference(now),
-    );
-    if (!this.armed) {
-      if (!covered) {
-        if (this.released < 0) this.released = this.handsTime;
-        if (this.handsTime - this.released >= 300) this.armed = true;
-      } else this.released = -1;
-      return;
-    }
-    if (covered) {
-      if (this.candidate < 0) this.candidate = now;
-      if (now - this.candidate >= 300 && !this.playing) this.trigger(now);
-    } else this.candidate = -1;
   }
   random() {
     this.seed = (Math.imul(this.seed, 1664525) + 1013904223) >>> 0;
@@ -847,7 +797,6 @@ export class Confetti {
     if (age >= 7) {
       for (const p of this.particles) p.state = 0;
       this.started = -1;
-      this.rearming = false;
       return;
     }
     const target = Math.min(
@@ -1098,7 +1047,6 @@ export class Confetti {
   }
   update(dtMs: number, now: number, sampleFrames = false) {
     if (this.snapshotAt && now >= this.snapshotAt) return;
-    this.gesture(now);
     if (!Number.isFinite(dtMs) || dtMs <= 0) {
       this.accumulator = 0;
       return;
@@ -1125,21 +1073,5 @@ export class Confetti {
       this.p95 = sorted[Math.floor(sorted.length * 0.95)];
       this.lastStats = now;
     }
-  }
-  hint(now: number) {
-    if (this.modelError) return '识别模型加载失败，请重试';
-    if (!this.modelReady) return '正在准备头发和肩膀识别…';
-    if (this.playing) return '彩带落下后，会停留在头发和肩膀上';
-    if (!this.armed) return '双手离开嘴部片刻，再捂嘴触发';
-    if (this.candidate >= 0) return '保持捂嘴片刻…';
-    if (
-      this.poseError ||
-      !['left', 'right'].some((id) => {
-        const s = this.surfaces.get(id);
-        return s?.valid && now - s.timestamp < 800;
-      })
-    )
-      return '双手捂嘴触发 · 肩膀暂不可见，仅支持头发停留';
-    return '双手捂嘴，保持片刻';
   }
 }

@@ -76,8 +76,9 @@ export function readHand(
   world?: number[] | null,
 ): Hand | null {
   if (raw.length !== 63 || !raw.every(Number.isFinite)) return null;
+  const points: (Point | undefined)[] = [];
   const p = (i: number) =>
-    coverPoint(raw[i * 3], raw[i * 3 + 1], width, height, sw, sh);
+    points[i] ?? (points[i] = coverPoint(raw[i * 3], raw[i * 3 + 1], width, height, sw, sh));
   const wrist = p(0),
     span = distance(p(5), p(17));
   if (span < 18) return null;
@@ -194,8 +195,9 @@ export function readHand(
       (ux * vx + uy * vy) / Math.max(1, Math.hypot(ux, uy) * Math.hypot(vx, vy))
     );
   };
-  const indexStraight =
-    jointCosine(p(5), p(6), p(7)) > 0.65 && jointCosine(p(6), p(7), tip) > 0.65;
+  const indexCos1 = jointCosine(base, pip, p(7)),
+    indexCos2 = jointCosine(pip, p(7), tip);
+  const indexStraight = indexCos1 > 0.65 && indexCos2 > 0.65;
   const thumbRaised =
     distance(thumb, wrist) > distance(p(5), wrist) * 1.12 &&
     distance(thumb, p(2)) > span * 0.6;
@@ -208,8 +210,6 @@ export function readHand(
     !heartPossible;
   const thumbBase = p(2),
     thumbKnuckle = p(3);
-  const indexCos1 = jointCosine(base, pip, p(7)),
-    indexCos2 = jointCosine(pip, p(7), tip);
   const indexRatio = distance(base, tip) / Math.max(1, indexChain);
   const thumbSpread = pointSegmentDistance(thumb, base, tip) / span;
   // A narrow gun silhouette is valid: thumb extension matters more than a wide L angle.
@@ -238,36 +238,32 @@ export function readHand(
     gunSeparation > 0.6;
   const pose = gunPose3D(world, projectedStraight);
   // Reject clear hooks; mild projected bends cannot veto a valid 3D pose.
-  const gunReason =
+  const gunDecision =
     Math.max(bend1, bend2) > 45 || indexRatio < 0.88
-      ? '二维食指明确弯曲'
+      ? {reason:'二维食指明确弯曲',state:'invalid'} as const
       : pose.state !== 'valid'
-            ? pose.reason
-            : gunForward < 0.5
-              ? '食指朝向投影不足'
-              : gunSeparation < 0.48
-                ? '拇食指分离证据不足'
-                : distance(base, tip) <= span * 0.35
-                  ? '食指投影过短'
-                  : distance(thumb, thumbBase) <= span * 0.35
-                    ? '拇指投影过短'
-                    : thumbSpread <= 0.12
-                      ? '拇指离食指距离不足'
-                      : !thumbOutside
-                        ? '拇指未伸出掌部'
-                        : thumbIndex <= 0.28
-                          ? '两指尖距离不足'
-                          : distalCross || heart || heartPossible
-                            ? '两指交叉或比心'
-                            : '标准发射手势';
-  const gunUncertain =
-    !/明确弯曲|交叉|比心|仍伸出|未伸出/.test(gunReason) &&
-    (pose.state === 'uncertain' || /不足|过短/.test(gunReason));
-  const gun = gunReason === '标准发射手势';
-  const indexBends: [number, number] = [
-    (Math.acos(clamp(indexCos1, -1, 1)) * 180) / Math.PI,
-    (Math.acos(clamp(indexCos2, -1, 1)) * 180) / Math.PI,
-  ];
+        ? pose
+        : gunForward < 0.5
+          ? {reason:'食指朝向投影不足',state:'uncertain'} as const
+          : gunSeparation < 0.48
+            ? {reason:'拇食指分离证据不足',state:'uncertain'} as const
+            : distance(base, tip) <= span * 0.35
+              ? {reason:'食指投影过短',state:'uncertain'} as const
+              : distance(thumb, thumbBase) <= span * 0.35
+                ? {reason:'拇指投影过短',state:'uncertain'} as const
+                : thumbSpread <= 0.12
+                  ? {reason:'拇指离食指距离不足',state:'uncertain'} as const
+                  : !thumbOutside
+                    ? {reason:'拇指未伸出掌部',state:'invalid'} as const
+                    : thumbIndex <= 0.28
+                      ? {reason:'两指尖距离不足',state:'uncertain'} as const
+                      : distalCross || heart || heartPossible
+                        ? {reason:'两指交叉或比心',state:'invalid'} as const
+                        : {reason:'标准发射手势',state:'valid'} as const;
+  const gunReason = gunDecision.reason;
+  const gunUncertain = gunDecision.state === 'uncertain';
+  const gun = gunDecision.state === 'valid';
+  const indexBends: [number, number] = [bend1, bend2];
   const gunLength = Math.hypot(ix, iy);
   const gunDirection = {
     x: ix / Math.max(1, gunLength),
