@@ -1,4 +1,3 @@
-'use client';
 import {useEffect,useRef,useState} from 'react';
 import {Confetti,type ConfettiPacket} from '../lib/confetti';
 import {Interaction,readHand,type Hand} from '../lib/interaction';

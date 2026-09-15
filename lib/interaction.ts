@@ -21,7 +21,7 @@ import {
   stepHeartTurn,
   HeartPetalPool,
 } from './heart-lightweight.ts';
-// Screen-space interaction prototype. No metric/shared camera depth is inferred.
+// Interactions use screen-space coordinates without estimating metric camera depth.
 export type Point = { x: number; y: number };
 export type Hand = {
   landmarks?: number[];

@@ -1,7 +1,7 @@
 type P={x:number;y:number};
 export const HEART_CAPACITY=12,HEART_LIFETIME=1.9;
 // Seven births avoids locking any size to the five-birth color cadence.
-// Keep the previous maximum; create contrast through smaller companions.
+// Smaller companion hearts create size contrast within the maximum size limit.
 const HEART_SIZE_WEIGHTS=[.72,.96,.84,1.10,.92,1,.80];
 export function heartBirthSize(width:number,height:number,sequence:number){
  return Math.min(144,Math.min(width,height)*.24)*.55*(width>height?1.01616768:1.1025)*HEART_SIZE_WEIGHTS[sequence%HEART_SIZE_WEIGHTS.length];

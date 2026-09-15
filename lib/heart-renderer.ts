@@ -152,7 +152,7 @@ export class HeartRenderer {
       slot.root.scale.setScalar(baseScale*finish);
       slot.root.rotation.z=-(h.appearanceAngle ?? h.angle ?? 0);
       slot.root.rotation.y=previewAngle ?? Math.sin(h.age*2)*.12;
-      // Freeze the old baked fade/shrink; contract about the body's centre instead.
+      // Hold the clip at the settling pose; apply the ending contraction about the body's centre.
       slot.mixer.setTime(heartClipTime(Math.min(h.age,lifetime-HEART_SETTLE),lifetime));
       this.centerOffset.copy(this.bodyCenter).applyEuler(slot.root.rotation).multiplyScalar(baseScale);
       slot.root.position.addScaledVector(this.centerOffset,1-finish);

@@ -222,7 +222,7 @@ export class ConfettiRenderer {
       ctx.fillRect(10, 165, Math.min(380, c.width - 20), 26);
       ctx.fillStyle = '#f89cfa';
       ctx.fillText(
-        '发区验证 · 粉色短线为稳定发区内落点 · 未通过真人验收',
+        '发区落点 · 粉色短线表示稳定发区内的有效落点',
         16,
         183,
       );
