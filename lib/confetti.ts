@@ -710,7 +710,7 @@ export class Confetti {
               : Math.min(6, s.capacity ?? 0);
         const filled = (this.landed[s.id] ?? 0) + (inFlight[s.id] ?? 0);
         if (!quota || filled >= quota) continue;
-        let points: { point: Point; patch?: number }[] = [];
+        const points: { point: Point; patch?: number }[] = [];
         let top = Infinity;
         if (s.id === 'hair')
           for (const [x, y, ex, ey] of s.segments)

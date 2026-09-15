@@ -19,3 +19,5 @@
 .format-icon{display:block;border:2px solid currentColor;border-radius:3px;height:20px;width:32px;margin:4px 0}
 .format-icon.portrait{height:28px;width:16px;margin:0}
 .orientation-option:focus-visible{outline:3px solid #b5aaff;outline-offset:3px}
+
+.camera-status{display:block}
